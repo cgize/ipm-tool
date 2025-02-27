@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Merge Processor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="title-bar">
+        <div id="title-bar-btns">
+            <button id="minimize-btn"><img src="assets/minimize-btn.png" alt="Minimize"></button>
+            <button id="close-btn"><img src="assets/close-btn.webp" alt="Close"></button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="top-section">
+            <h1>InventoryPreset Merge Tool</h1>
+            <div>
+                <label>Mods Folder Path:</label>
+                <input type="text" id="modsPath" readonly>
+                <button id="selectModsPath"><span>Select</span></button>
+            </div>
+        </div>
+    </div>
+
+    <button id="searchAndMerge">Search & Merge</button>
+
+    <div id="processing" style="display: none;">
+        <p>Processing...</p>
+        <ul id="processingList"></ul>
+    </div>
+
+    <div id="result" style="display: none;">
+        <p id="resultMessage"></p>
+        <div id="combinedMods" style="display: none;">
+            <h3>Combined Mods</h3>
+            <ul id="modsList"></ul>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

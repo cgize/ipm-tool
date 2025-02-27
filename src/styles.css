@@ -1,0 +1,287 @@
+/* Cinzel Decorative */
+@font-face {
+    font-family: 'Cinzel Decorative';
+    src: url('assets/fonts/CinzelDecorative-Black.ttf') format('truetype');
+    font-weight: 900; /* Black */
+    font-style: normal;
+  }
+  
+  @font-face {
+    font-family: 'Cinzel Decorative';
+    src: url('assets/fonts/CinzelDecorative-Black.ttf') format('truetype');
+    font-weight: 700; /* Bold */
+    font-style: normal;
+  }
+  
+  @font-face {
+    font-family: 'Cinzel Decorative';
+    src: url('assets/fonts/CinzelDecorative-Regular.ttf') format('truetype');
+    font-weight: 400; /* Regular */
+    font-style: normal;
+  }
+  
+  /* Krinah Personal Use */
+  @font-face {
+    font-family: 'Krinah Personal Use';
+    src: url('assets/fonts/Krinahpersonal.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  
+  /* EagleLake */
+  @font-face {
+    font-family: 'Eagle Lake';
+    src: url('assets/fonts/EagleLake-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  
+  /* Medieval Sharp */
+  @font-face {
+    font-family: 'Medieval Sharp';
+    src: url('assets/fonts/MedievalSharp-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  /* Inknut Antiqua */
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-SemiBold.ttf') format('truetype');
+  font-weight: 600; /* SemiBold */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-Regular.ttf') format('truetype');
+  font-weight: 400; /* Regular */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-Medium.ttf') format('truetype');
+  font-weight: 500; /* Medium */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-Light.ttf') format('truetype');
+  font-weight: 300; /* Light */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-ExtraBold.ttf') format('truetype');
+  font-weight: 800; /* ExtraBold */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-Bold.ttf') format('truetype');
+  font-weight: 700; /* Bold */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inknut Antiqua';
+  src: url('assets/fonts/InknutAntiqua-Black.ttf') format('truetype');
+  font-weight: 900; /* Black */
+  font-style: normal;
+}
+  
+  h1 {
+    font-family: 'Medieval Sharp', serif;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    font-family: 'Medieval Sharp', serif;
+    text-transform: uppercase;
+  }
+  h3 {
+    font-family: 'Inknut Antiqua', sans-serif;
+    text-transform: uppercase;
+    font-size: 16px;
+    margin-block-end: -24px;
+    color: #303030;
+  }
+  
+  p {
+    font-family: 'Inknut Antiqua', sans-serif;
+  }
+
+  #modsList li {
+    list-style-type: none; /* Elimina los puntos predeterminados */
+    font-family: 'Inknut Antiqua', sans-serif;
+    margin-bottom: -15px;
+    margin-left: -26px;
+    margin-top: -14px;
+    font-size: 14px;
+  }
+
+  #modsList li::before {
+    content: "\27A2 "; /* Agrega la flecha ⮚ y un espacio */
+    color: #333; /* Color de la flecha (ajusta según necesites) */
+    margin-right: 5px; /* Espacio entre la flecha y el texto */
+}
+
+  #title-bar {
+    -webkit-app-region: drag;
+    height: 30px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+  #title-bar-btns {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    right: 80px;
+    top: 25px;
+}
+
+#title-bar-btns button {
+    -webkit-app-region: no-drag;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+#title-bar-btns button img {
+  max-width: 26px;
+  max-height: 26px;
+  transition: transform 0.2s ease, filter 0.2s ease; /* Usamos filter en lugar de box-shadow */
+}
+
+#title-bar-btns button:hover img {
+  transform: scale(1.04);
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7)); /* Glow redondo */
+}
+
+body {
+    background-image: url('assets/background.webp');
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    height: 100vh; /* Asegura que el fondo ocupe toda la altura de la pantalla */
+    width: 100vw;  /* Opcional si hay problemas con el ajuste horizontal */
+    overflow: hidden; /* Evita el desplazamiento si hay contenido extra */
+}
+
+.hidden {
+    display: none;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding-top: 20px; /* Espaciado superior */
+}
+
+.top-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px; /* Espaciado entre elementos */
+}
+
+.top-section label {
+  font-size: 12px; /* Cambia el tamaño de la fuente a 14px (o el tamaño que prefieras) */
+  font-family: 'inknut Antiqua', sans-serif; /* Cambia la fuente a Inknut Antiqua */
+}
+
+#processing, #result {
+    display: none;
+}
+
+#result {
+    display: block;
+    height: 100%;
+    width: 100%;
+}
+
+#resultMessage {
+    font-weight: bold;
+    padding-top: 25px;
+    padding-bottom: 10px;
+    padding-left: 60px;
+    color: #303030;
+    font-size: 14px;
+}
+
+#combinedMods {
+    margin-left: 60px;
+}
+
+#modsPath .img {
+    width: 300px;
+}
+
+#searchAndMerge {
+  position: fixed;
+  bottom: 46px;
+  left: 50%;
+  width: 137px;
+  height: 70px;
+  transform: translateX(-50%);
+  background-image: url('assets/big-btn3.webp');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-color: transparent;
+  border: none;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  color: #000000;
+  text-shadow: 1px 1px 0px #dbdbdb;
+  font-family: 'Medieval Sharp';
+  font-weight: bold;
+  text-transform: uppercase;
+  line-height: 70px;
+  text-align: center;
+  z-index: 1; /* Agregado z-index */
+}
+
+#searchAndMerge:hover {
+  transform: translateX(-50%) scale(1.02);
+  filter: drop-shadow(0 0 4px rgb(174, 174, 174)); /* Cambiado a color rojo sólido */
+  z-index: 1; /* Agregado z-index */
+}
+
+#selectModsPath {
+    background-image: url('assets/small-btn.webp');
+    background-size: contain;
+    background-color: transparent;
+    width: 71px;
+    height: 35px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+div button#selectModsPath span {
+  color: #000000;
+  text-shadow: 1px 1px 0px #dbdbdb;
+  font-family: 'Medieval Sharp';
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+#selectModsPath:hover {
+    transform: scale(1.02);
+    filter: drop-shadow(0 0 4px rgb(174, 174, 174)); /* Cambiado a color rojo sólido */
+    background-image: url('assets/small-btn.webp');
+    background-size: contain;
+    background-color: transparent;
+    width: 71px;
+    height: 35px;
+    border: none;
+    cursor: pointer;
+}
