@@ -76,7 +76,6 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
     const allXmls = [];
 
     for (const pakFile of pakFiles) {
-        // Obtener el modId de este pak
         let modId;
         try {
             modId = await extractModIdFromPak(pakFile);
@@ -105,7 +104,6 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
                                     allXmls.push({
                                         content: xmlContent,
                                         modId: modId,
-                                        // Se determina la prioridad según si el modId aparece en modOrder.
                                         priority: modOrder.indexOf(modId) !== -1 ? modOrder.indexOf(modId) : Infinity,
                                         fileName: entry.fileName
                                     });
@@ -126,23 +124,11 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
         }
     }
 
-    // Ordenar por prioridad (mayor prioridad = último en modOrder)
     allXmls.sort((a, b) => b.priority - a.priority);
-
-    // Filtrar para mantener solo la versión más reciente de cada mod, usando modId.
-    const uniqueXmls = [];
-    const processedMods = new Set();
-
-    allXmls.forEach(xml => {
-        if (xml.modId && !processedMods.has(xml.modId)) {
-            uniqueXmls.push(xml);
-            processedMods.add(xml.modId);
-        }
-    });
-
+    
     return {
-        xmls: uniqueXmls,
-        modIds: Array.from(processedMods)
+        xmls: allXmls,
+        modIds: [...new Set(allXmls.map(xml => xml.modId))] // ModIds únicos
     };
 }
 
@@ -153,11 +139,75 @@ async function combineXmls(xmlFiles) {
         preserveChildrenOrder: true,
         ignoreAttrs: false
     });
-
     const builder = new xml2js.Builder({
         renderOpts: { pretty: true, indent: '\t' },
         xmldec: { version: '1.0', encoding: 'us-ascii' }
     });
+
+    // Primero agrupamos todos los InventoryPreset por su atributo Name
+    const presetGroups = new Map();
+
+    for (const xmlFile of xmlFiles) {
+        try {
+            const parsed = await parser.parseStringPromise(xmlFile.content);
+            const presets = parsed.database?.InventoryPresets?.[0]?.InventoryPreset;
+            if (!presets) continue;
+            const presetArray = Array.isArray(presets) ? presets : [presets];
+            for (const preset of presetArray) {
+                const presetName = preset.$.Name;
+                if (!presetName) continue;
+                if (!presetGroups.has(presetName)) {
+                    presetGroups.set(presetName, []);
+                }
+                presetGroups.get(presetName).push(preset);
+            }
+        } catch (err) {
+            console.error(`Error procesando ${xmlFile.fileName}:`, err);
+        }
+    }
+
+    // Ahora procesamos cada grupo
+    const mergedPresets = [];
+    for (const [presetName, presets] of presetGroups.entries()) {
+        if (presets.length === 1) {
+            // Si solo aparece una vez, usamos la entrada tal cual
+            mergedPresets.push(presets[0]);
+        } else {
+            // Si hay múltiples, elegimos como base la que tenga más nodos hijos (más completa)
+            let base = presets[0];
+            for (const p of presets) {
+                const countBase = Object.keys(base).filter(k => k !== '$').length;
+                const countP = Object.keys(p).filter(k => k !== '$').length;
+                if (countP > countBase) {
+                    base = p;
+                }
+            }
+            // Luego, recorremos las otras ocurrencias y fusionamos nodos que falten en la base
+            for (const p of presets) {
+                if (p === base) continue;
+                for (const childType in p) {
+                    if (childType === '$') continue;
+                    // Si la base no tiene ese tipo de nodo, lo copiamos entero
+                    if (!base[childType]) {
+                        base[childType] = p[childType];
+                    } else {
+                        // Si ya existe, aseguramos que cada elemento de p[childType] esté presente en la base
+                        const baseArr = Array.isArray(base[childType]) ? base[childType] : [base[childType]];
+                        const pArr = Array.isArray(p[childType]) ? p[childType] : [p[childType]];
+                        for (const elem of pArr) {
+                            // Comparamos usando JSON.stringify de los atributos (asumiendo que el orden de las claves sea consistente)
+                            const exists = baseArr.some(e => JSON.stringify(e.$) === JSON.stringify(elem.$));
+                            if (!exists) {
+                                baseArr.push(elem);
+                            }
+                        }
+                        base[childType] = baseArr;
+                    }
+                }
+            }
+            mergedPresets.push(base);
+        }
+    }
 
     const combinedXml = {
         database: {
@@ -168,68 +218,10 @@ async function combineXmls(xmlFiles) {
             },
             InventoryPresets: {
                 '$': { version: '2' },
-                InventoryPreset: []
+                InventoryPreset: mergedPresets
             }
         }
     };
-
-    const presetMap = new Map();
-
-    for (let i = xmlFiles.length - 1; i >= 0; i--) {
-        const xmlFile = xmlFiles[i];
-
-        try {
-            const parsed = await parser.parseStringPromise(xmlFile.content);
-            const presets = parsed.database?.InventoryPresets?.[0]?.InventoryPreset;
-
-            if (!presets) continue;
-
-            const presetArray = Array.isArray(presets) ? presets : [presets];
-
-            for (const preset of presetArray) {
-                const presetName = preset.$.Name;
-                if (!presetName) continue;
-
-                if (!presetMap.has(presetName)) {
-                    presetMap.set(presetName, {
-                        attributes: preset.$,
-                        elements: new Map()
-                    });
-                }
-
-                const existingPreset = presetMap.get(presetName);
-
-                // Agregar dinámicamente todos los tipos de hijos de InventoryPreset
-                Object.keys(preset).forEach(childType => {
-                    if (childType === '$') return;
-
-                    if (!existingPreset.elements.has(childType)) {
-                        existingPreset.elements.set(childType, new Map());
-                    }
-
-                    const elements = Array.isArray(preset[childType]) ? preset[childType] : [preset[childType]];
-
-                    elements.forEach(element => {
-                        const key = generateElementKey(element);
-                        existingPreset.elements.get(childType).set(key, element);
-                    });
-                });
-            }
-        } catch (err) {
-            console.error(`Error procesando ${xmlFile.fileName}:`, err);
-        }
-    }
-
-    // Convertir Map a estructura XML
-    combinedXml.database.InventoryPresets.InventoryPreset = Array.from(presetMap.values()).map(preset => {
-        const result = { '$': preset.attributes };
-
-        preset.elements.forEach((elementsMap, childType) => {
-            result[childType] = Array.from(elementsMap.values());
-        });
-
-        return result;
-    });
 
     return builder.buildObject(combinedXml);
 }
