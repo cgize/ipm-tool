@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Merge Processor</title>
+    <style>
+        #processing, #result { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Merge Processor</h1>
+    <div>
+        <label>Mods Path:</label>
+        <input type="text" id="modsPath" readonly>
+        <button id="selectModsPath">Select</button>
+    </div>
+    <button id="searchAndMerge">Search and Merge</button>
+    <div id="processing">
+        <h2>Processing...</h2>
+        <ul id="processingList"></ul>
+    </div>
+    <div id="result">
+        <p id="resultMessage"></p>
+        <div id="combinedMods" style="margin-top: 20px; display: none;">
+            <h3>Merged Mods:</h3>
+            <ul id="modsList"></ul>
+        </div>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+</html>
