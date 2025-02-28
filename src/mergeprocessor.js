@@ -4,6 +4,7 @@ const yauzl = require('yauzl');
 const xml2js = require('xml2js');
 const AdmZip = require('adm-zip');
 
+// Función  para buscar archivos .pak
 async function findPakFiles(modsPath) {
     async function searchDir(dir) {
         let pakFiles = [];
@@ -23,6 +24,7 @@ async function findPakFiles(modsPath) {
     return await searchDir(modsPath);
 }
 
+// Función para obtener el orden de los mods
 async function getModOrder(modsPath) {
     const modOrderPath = path.join(modsPath, 'mod_order.txt');
     try {
@@ -36,6 +38,7 @@ async function getModOrder(modsPath) {
     }
 }
 
+// Función  para extraer modId
 async function extractModIdFromPak(pakFilePath) {
     const modFolder = path.dirname(path.dirname(pakFilePath));
     const manifestPath = path.join(modFolder, 'mod.manifest');
@@ -45,33 +48,19 @@ async function extractModIdFromPak(pakFilePath) {
         const parser = new xml2js.Parser({ explicitArray: false });
         const parsedManifest = await parser.parseStringPromise(manifestContent);
 
-        // Se asume que el manifest tiene la estructura:
-        // <kcd_mod>
-        //    <info>
-        //       <modid>...</modid>
-        //       <name>...</name>
-        //       ...
-        //    </info>
-        // </kcd_mod>
         if (parsedManifest?.kcd_mod?.info?.modid) {
             return parsedManifest.kcd_mod.info.modid;
         }
         if (parsedManifest?.kcd_mod?.info?.name) {
             return parsedManifest.kcd_mod.info.name.toLowerCase().replace(/\s+/g, '_');
         }
-    } catch (error) {
-        // Si no se encuentra mod.manifest o ocurre algún error, se usa el nombre de la carpeta.
-    }
+    } catch (error) {}
+    
     const folderName = path.basename(modFolder);
     return folderName.toLowerCase().replace(/\s+/g, '_');
 }
 
-
-function extractModIdFromXml(xmlFileName) {
-    const match = xmlFileName.match(/InventoryPreset__(.*?)\.xml/);
-    return match ? match[1] : null;
-}
-
+// Función  para extraer XMLs relevantes
 async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
     const allXmls = [];
 
@@ -124,88 +113,71 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
         }
     }
 
-    allXmls.sort((a, b) => b.priority - a.priority);
+    // Ordenar por prioridad ascendente (menor índice = mayor prioridad)
+    allXmls.sort((a, b) => a.priority - b.priority);
     
     return {
         xmls: allXmls,
-        modIds: [...new Set(allXmls.map(xml => xml.modId))] // ModIds únicos
+        modIds: [...new Set(allXmls.map(xml => xml.modId))]
     };
 }
 
+// Función para combinar XMLs
 async function combineXmls(xmlFiles) {
     const parser = new xml2js.Parser({
         explicitArray: true,
-        mergeAttrs: false,
         preserveChildrenOrder: true,
-        ignoreAttrs: false
+        ignoreAttrs: false,
+        preserveWhitespace: false,
+        comment: false
     });
+
     const builder = new xml2js.Builder({
         renderOpts: { pretty: true, indent: '\t' },
         xmldec: { version: '1.0', encoding: 'us-ascii' }
     });
 
-    // Primero agrupamos todos los InventoryPreset por su atributo Name
-    const presetGroups = new Map();
+    const presetMap = new Map();
 
     for (const xmlFile of xmlFiles) {
         try {
             const parsed = await parser.parseStringPromise(xmlFile.content);
             const presets = parsed.database?.InventoryPresets?.[0]?.InventoryPreset;
+
             if (!presets) continue;
+
             const presetArray = Array.isArray(presets) ? presets : [presets];
+
             for (const preset of presetArray) {
                 const presetName = preset.$.Name;
                 if (!presetName) continue;
-                if (!presetGroups.has(presetName)) {
-                    presetGroups.set(presetName, []);
+
+                if (!presetMap.has(presetName)) {
+                    presetMap.set(presetName, {
+                        attributes: preset.$,
+                        elements: new Map()
+                    });
                 }
-                presetGroups.get(presetName).push(preset);
+
+                const existingPreset = presetMap.get(presetName);
+
+                Object.keys(preset).forEach(childType => {
+                    if (childType === '$') return;
+
+                    if (!existingPreset.elements.has(childType)) {
+                        existingPreset.elements.set(childType, new Map());
+                    }
+
+                    const elements = Array.isArray(preset[childType]) ? preset[childType] : [preset[childType]];
+                    
+                    elements.forEach(element => {
+                        const key = generateElementKey(element);
+                        existingPreset.elements.get(childType).set(key, element);
+                    });
+                });
             }
         } catch (err) {
             console.error(`Error procesando ${xmlFile.fileName}:`, err);
-        }
-    }
-
-    // Ahora procesamos cada grupo
-    const mergedPresets = [];
-    for (const [presetName, presets] of presetGroups.entries()) {
-        if (presets.length === 1) {
-            // Si solo aparece una vez, usamos la entrada tal cual
-            mergedPresets.push(presets[0]);
-        } else {
-            // Si hay múltiples, elegimos como base la que tenga más nodos hijos (más completa)
-            let base = presets[0];
-            for (const p of presets) {
-                const countBase = Object.keys(base).filter(k => k !== '$').length;
-                const countP = Object.keys(p).filter(k => k !== '$').length;
-                if (countP > countBase) {
-                    base = p;
-                }
-            }
-            // Luego, recorremos las otras ocurrencias y fusionamos nodos que falten en la base
-            for (const p of presets) {
-                if (p === base) continue;
-                for (const childType in p) {
-                    if (childType === '$') continue;
-                    // Si la base no tiene ese tipo de nodo, lo copiamos entero
-                    if (!base[childType]) {
-                        base[childType] = p[childType];
-                    } else {
-                        // Si ya existe, aseguramos que cada elemento de p[childType] esté presente en la base
-                        const baseArr = Array.isArray(base[childType]) ? base[childType] : [base[childType]];
-                        const pArr = Array.isArray(p[childType]) ? p[childType] : [p[childType]];
-                        for (const elem of pArr) {
-                            // Comparamos usando JSON.stringify de los atributos (asumiendo que el orden de las claves sea consistente)
-                            const exists = baseArr.some(e => JSON.stringify(e.$) === JSON.stringify(elem.$));
-                            if (!exists) {
-                                baseArr.push(elem);
-                            }
-                        }
-                        base[childType] = baseArr;
-                    }
-                }
-            }
-            mergedPresets.push(base);
         }
     }
 
@@ -218,7 +190,18 @@ async function combineXmls(xmlFiles) {
             },
             InventoryPresets: {
                 '$': { version: '2' },
-                InventoryPreset: mergedPresets
+                InventoryPreset: Array.from(presetMap.values()).map(preset => {
+                    const result = { '$': preset.attributes };
+                    preset.elements.forEach((elementsMap, childType) => {
+                        result[childType] = Array.from(elementsMap.values()).map(element => {
+                            // Correción clave: Manejar texto opcional
+                            const obj = { $: element.$ };
+                            if (element._) obj._ = element._;
+                            return obj;
+                        });
+                    });
+                    return result;
+                })
             }
         }
     };
@@ -226,20 +209,14 @@ async function combineXmls(xmlFiles) {
     return builder.buildObject(combinedXml);
 }
 
+// Función clave de elemento
 function generateElementKey(element) {
-    return element.$?.Name || element.$?.Ref || JSON.stringify(element.$);
+    const attrs = element.$ || {};
+    const sortedKeys = Object.keys(attrs).sort();
+    return sortedKeys.map(key => `${key}=${attrs[key]}`).join('|');
 }
 
-function generateElementKey(element) {
-    if (element.$.Name) {
-        return `${element.$.Name}|${element.$.Quality || ''}|${element.$.Condition || ''}`;
-    }
-    if (element.$.Ref) {
-        return element.$.Ref;
-    }
-    return JSON.stringify(element.$);
-}
-
+// Funciones auxiliares
 async function ensureDirectoryExists(dirPath) {
     try {
         await fs.access(dirPath);
@@ -290,16 +267,15 @@ async function updateModOrder(modsPath) {
     let modOrder = '';
     try {
         modOrder = await fs.readFile(modOrderPath, 'utf8');
-    } catch (e) {
+    } catch (e) {}
 
-    }
-    
     if (!modOrder.includes('ipmtool')) {
         modOrder += '\nipmtool';
         await fs.writeFile(modOrderPath, modOrder.trim());
     }
 }
 
+// Función principal
 async function searchAndMerge(modsPath, options = {}) {
     try {
         const modOrder = await getModOrder(modsPath);

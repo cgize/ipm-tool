@@ -233,7 +233,7 @@ body {
   width: 137px;
   height: 70px;
   transform: translateX(-50%);
-  background-image: url('assets/big-btn3.webp');
+  background-image: url('assets/btn-big.webp');
   background-repeat: no-repeat;
   background-size: contain;
   background-color: transparent;
