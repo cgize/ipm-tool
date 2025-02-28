@@ -93,9 +93,10 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
                                     allXmls.push({
                                         content: xmlContent,
                                         modId: modId,
-                                        priority: modOrder.indexOf(modId) !== -1 ? modOrder.indexOf(modId) : Infinity,
+                                        priority: modOrder.indexOf(modId),
                                         fileName: entry.fileName
                                     });
+                                    
                                     zip.readEntry();
                                 });
                             });
@@ -114,7 +115,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
     }
 
     // Ordenar por prioridad ascendente (menor índice = mayor prioridad)
-    allXmls.sort((a, b) => a.priority - b.priority);
+    allXmls.sort((a, b) => b.priority - a.priority);
     
     return {
         xmls: allXmls,
