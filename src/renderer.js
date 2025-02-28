@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const logPath = path.join(modsPath, 'ipmtool', 'ipmtool.log');
             await fs.writeFile(logPath, result.logContent);
             
-            resultMessage.textContent = `${result.message} | Log guardado en: ipmtool/ipmtool.log`;
+            resultMessage.textContent = `${result.message} | Log saved in: ipmtool/ipmtool.log`;
 
             resultDiv.style.display = 'block';
             resultMessage.textContent = result.message;
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             resultDiv.style.display = 'block';
-            resultMessage.textContent = `Error: ${error.message}`;
+            resultMessage.textContent = `${error.message}`;
         } finally {
             processingDiv.style.display = 'none';
         }

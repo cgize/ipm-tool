@@ -316,13 +316,13 @@ async function searchAndMerge(modsPath, options = {}) {
     const logger = new Logger();
     
     try {
-        logger.info(`Iniciando proceso en: ${modsPath}`);
+        logger.info(`Starting process in: ${modsPath}`);
         const modOrder = await getModOrder(modsPath);
-        logger.info(`Orden de mods detectado: ${modOrder.join(', ') || 'Ninguno'}`);
+        logger.info(`Detected mod order: ${modOrder.join(', ') || 'None'}`);
 
         const pakFiles = await findPakFiles(modsPath);
         logger.pakFiles = pakFiles;
-        logger.info(`Archivos PAK encontrados: ${pakFiles.length}`);
+        logger.info(`PAK files found: ${pakFiles.length}`);
 
         if (pakFiles.length === 0) {
             throw new Error('No PAK files were found in the specified path');
@@ -339,7 +339,7 @@ async function searchAndMerge(modsPath, options = {}) {
             logger.combinedMods.set(xml.modId, modData);
         });
 
-        logger.info(`XMLs relevantes procesados: ${xmlFiles.length}`);
+        logger.info(`Relevant XMLs processed: ${xmlFiles.length}`);
         
         if (xmlFiles.length === 0) {
             throw new Error('No relevant XML files were found in the PAKs');
@@ -350,7 +350,7 @@ async function searchAndMerge(modsPath, options = {}) {
         await createModManifest(modsPath);
         await updateModOrder(modsPath);
 
-        logger.info('Proceso completado exitosamente');
+        logger.info('Process completed successfully');
         
         return { 
             success: true, 
@@ -359,11 +359,11 @@ async function searchAndMerge(modsPath, options = {}) {
             logContent: logger.getLogContent() // Nuevo campo
         };
     } catch (error) {
-        logger.error(`Error: ${error.message}`);
+        logger.error(`${error.message}`);
         console.error(error);
         return {
             success: false,
-            message: `Error: ${error.message}`,
+            message: `${error.message}`,
             logContent: logger.getLogContent()
         };
     }
