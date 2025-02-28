@@ -8,9 +8,8 @@
 1.  **Clone the repository:**
     ```bash
     git clone https://github.com/cgize/ipm-tool.git
-    cd <repository_name>
+    cd ipm-tool
     ```
-    Replace `<repository_url>` with the URL of your GitHub repository and `<repository_name>` with the name of your repository.
 2.  **Install dependencies:**
     ```bash
     npm install
