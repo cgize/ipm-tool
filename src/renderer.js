@@ -78,6 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     processingList.appendChild(li);
                 }
             });
+    
+            // Guardar log
+            const logPath = path.join(modsPath, 'ipmtool', 'ipmtool.log');
+            await fs.writeFile(logPath, result.logContent);
+            
+            resultMessage.textContent = `${result.message} | Log guardado en: ipmtool/ipmtool.log`;
 
             resultDiv.style.display = 'block';
             resultMessage.textContent = result.message;

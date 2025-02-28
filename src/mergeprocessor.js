@@ -4,6 +4,41 @@ const yauzl = require('yauzl');
 const xml2js = require('xml2js');
 const AdmZip = require('adm-zip');
 
+class Logger {
+    constructor() {
+        this.logs = [];
+        this.pakFiles = [];
+        this.xmlFiles = [];
+        this.combinedMods = new Map();
+    }
+
+    log(type, message) {
+        const timestamp = new Date().toISOString();
+        this.logs.push(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
+    }
+
+    info(message) {
+        this.log('info', message);
+    }
+
+    error(message) {
+        this.log('error', message);
+    }
+
+    getLogContent() {
+        return [
+            "=== IPM Tool Log ===",
+            `Generated: ${new Date().toLocaleString()}`,
+            "\n== PAK Files Found ==\n" + this.pakFiles.join('\n'),
+            "\n== XML Files Processed ==\n" + this.xmlFiles.join('\n'),
+            "\n== Mod Processing Details ==\n" + [...this.combinedMods].map(([mod, {priority, xmls}]) => 
+                `Mod: ${mod} | Priority: ${priority}\nXMLs: ${xmls.join(', ')}`
+            ).join('\n'),
+            "\n== Execution Log ==\n" + this.logs.join('\n')
+        ].join('\n');
+    }
+}
+
 // Función  para buscar archivos .pak
 async function findPakFiles(modsPath) {
     async function searchDir(dir) {
@@ -278,15 +313,33 @@ async function updateModOrder(modsPath) {
 
 // Función principal
 async function searchAndMerge(modsPath, options = {}) {
+    const logger = new Logger();
+    
     try {
+        logger.info(`Iniciando proceso en: ${modsPath}`);
         const modOrder = await getModOrder(modsPath);
+        logger.info(`Orden de mods detectado: ${modOrder.join(', ') || 'Ninguno'}`);
+
         const pakFiles = await findPakFiles(modsPath);
+        logger.pakFiles = pakFiles;
+        logger.info(`Archivos PAK encontrados: ${pakFiles.length}`);
 
         if (pakFiles.length === 0) {
             throw new Error('No PAK files were found in the specified path');
         }
 
-        const { xmls: xmlFiles, modIds } = await extractRelevantXmls(pakFiles, modOrder, options.onProcessingFile);
+        const { xmls: xmlFiles, modIds } = await extractRelevantXmls(pakFiles, modOrder, (fileName) => {
+            logger.xmlFiles.push(fileName);
+            options.onProcessingFile?.(fileName);
+        });
+
+        xmlFiles.forEach(xml => {
+            const modData = logger.combinedMods.get(xml.modId) || { priority: xml.priority, xmls: [] };
+            modData.xmls.push(xml.fileName);
+            logger.combinedMods.set(xml.modId, modData);
+        });
+
+        logger.info(`XMLs relevantes procesados: ${xmlFiles.length}`);
         
         if (xmlFiles.length === 0) {
             throw new Error('No relevant XML files were found in the PAKs');
@@ -297,14 +350,22 @@ async function searchAndMerge(modsPath, options = {}) {
         await createModManifest(modsPath);
         await updateModOrder(modsPath);
 
+        logger.info('Proceso completado exitosamente');
+        
         return { 
             success: true, 
             message: 'The IPM PAK file has been created and mod_order updated.',
-            combinedMods: modIds
+            combinedMods: modIds,
+            logContent: logger.getLogContent() // Nuevo campo
         };
     } catch (error) {
+        logger.error(`Error: ${error.message}`);
         console.error(error);
-        throw new Error(`Error: ${error.message}`);
+        return {
+            success: false,
+            message: `Error: ${error.message}`,
+            logContent: logger.getLogContent()
+        };
     }
 }
 
