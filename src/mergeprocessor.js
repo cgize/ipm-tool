@@ -354,7 +354,7 @@ async function searchAndMerge(modsPath, options = {}) {
         
         return { 
             success: true, 
-            message: 'The IPM PAK file has been created and mod_order updated.',
+            message: 'Ipmtool .pak file has been created and mod_order updated.',
             combinedMods: modIds,
             logContent: logger.getLogContent() // Nuevo campo
         };
