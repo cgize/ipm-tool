@@ -128,7 +128,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
                                     allXmls.push({
                                         content: xmlContent,
                                         modId: modId,
-                                        priority: modOrder.indexOf(modId),
+                                        priority: modOrder.length - modOrder.indexOf(modId),
                                         fileName: entry.fileName
                                     });
                                     
@@ -149,8 +149,8 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
         }
     }
 
-    // Ordenar por prioridad ascendente (menor índice = mayor prioridad)
-    allXmls.sort((a, b) => a.priority - b.priority);
+    // Ordenar por prioridad
+    allXmls.sort((a, b) => b.priority - a.priority);
     
     return {
         xmls: allXmls,
