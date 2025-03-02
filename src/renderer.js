@@ -59,7 +59,15 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please select the Mods path');
             return;
         }
-
+    
+        // Limpiar carpeta ipmtool antes de comenzar
+        const ipmToolPath = path.join(modsPath, 'ipmtool');
+        try {
+            await fs.rm(ipmToolPath, { recursive: true, force: true });
+        } catch (err) {
+            if (err.code !== 'ENOENT') console.error('Error deleting folder:', err);
+        }
+    
         processingDiv.style.display = 'block';
         resultDiv.style.display = 'none';
         processingList.innerHTML = '';
