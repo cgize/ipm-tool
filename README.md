@@ -3,7 +3,7 @@
 * **Node.js and npm:** Ensure you have Node.js and npm (Node Package Manager) installed on your system.
 * **Git (Optional):** Git is required if you want to clone the repository. Alternatively, you can download the source code as a ZIP file.
 
-## Option 1: Using Git
+## Using Git
 
 1.  **Clone the repository:**
     ```bash
@@ -21,7 +21,7 @@
     ```
     This command will build the Electron app for Windows in portable format.
 
-## Option 2: Downloading the Source Code (Without Git)
+## Downloading the Source Code (Without Git)
 
 1.  **Download the ZIP file:**
     * Go to your GitHub repository.
