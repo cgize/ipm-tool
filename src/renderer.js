@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const processingList = document.getElementById('processingList');
     const resultDiv = document.getElementById('result');
     const resultMessage = document.getElementById('resultMessage');
+    const logContentElement = document.getElementById('logContent');
 
     document.getElementById('minimize-btn').addEventListener('click', () => {
         remote.getCurrentWindow().minimize();
@@ -41,17 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
             inputElement.value = modsPath;
 
             const ipmToolPath = path.join(modsPath, 'ipmtool');
-
             try {
-                // Comprobar si la carpeta existe
                 await fs.access(ipmToolPath);
-                // Eliminar la carpeta de manera recursiva
                 await fs.rm(ipmToolPath, { recursive: true, force: true });
-                console.log(`Carpeta eliminada: ${ipmToolPath}`);
             } catch (err) {
-                if (err.code !== 'ENOENT') {
-                    console.error(`Error al eliminar ${ipmToolPath}:`, err);
-                }
+                if (err.code !== 'ENOENT') console.error('Error deleting folder:', err);
             }
         }
     }
@@ -60,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchAndMergeBtn.addEventListener('click', async () => {
         const modsPath = modsPathInput.value;
-
         if (!modsPath) {
             alert('Please select the Mods path');
             return;
@@ -69,39 +63,47 @@ document.addEventListener('DOMContentLoaded', () => {
         processingDiv.style.display = 'block';
         resultDiv.style.display = 'none';
         processingList.innerHTML = '';
+        logContentElement.textContent = '';
+
+        const options = {
+            onProcessingFile: (fileName) => {
+                const li = document.createElement('li');
+                li.textContent = fileName;
+                processingList.appendChild(li);
+            },
+            combineOnlyConflicts: document.getElementById('combineOnlyConflicts').checked
+        };
 
         try {
-            const result = await searchAndMerge(modsPath, {
-                onProcessingFile: (fileName) => {
-                    const li = document.createElement('li');
-                    li.textContent = fileName;
-                    processingList.appendChild(li);
-                }
-            });
-    
-            // Guardar log
+            const result = await searchAndMerge(modsPath, options);
             const logPath = path.join(modsPath, 'ipmtool', 'ipmtool.log');
             await fs.writeFile(logPath, result.logContent);
-            
-            resultMessage.textContent = `${result.message} | Log saved in: ipmtool/ipmtool.log`;
 
+            // Actualizar UI
             resultDiv.style.display = 'block';
             resultMessage.textContent = result.message;
+            logContentElement.textContent = result.logContent;
 
+            // Mostrar mods combinados
             const modsList = document.getElementById('modsList');
             const combinedModsDiv = document.getElementById('combinedMods');
             modsList.innerHTML = '';
-            combinedModsDiv.style.display = 'block';
-
-            result.combinedMods.forEach(modId => {
-                const li = document.createElement('li');
-                li.textContent = modId;
-                modsList.appendChild(li);
-            });
+            
+            if (result.combinedMods.length > 0) {
+                combinedModsDiv.style.display = 'block';
+                result.combinedMods.forEach(modId => {
+                    const li = document.createElement('li');
+                    li.textContent = modId;
+                    modsList.appendChild(li);
+                });
+            } else {
+                combinedModsDiv.style.display = 'none';
+            }
 
         } catch (error) {
             resultDiv.style.display = 'block';
-            resultMessage.textContent = `${error.message}`;
+            resultMessage.textContent = error.message;
+            logContentElement.textContent = error.logContent || 'No log available';
         } finally {
             processingDiv.style.display = 'none';
         }

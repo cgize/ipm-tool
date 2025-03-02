@@ -104,7 +104,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
         try {
             modId = await extractModIdFromPak(pakFile);
         } catch (error) {
-            console.error(`Error obteniendo modId de ${pakFile}: ${error.message}`);
+            console.error(`Error getting modId from ${pakFile}: ${error.message}`);
             modId = null;
         }
 
@@ -145,12 +145,12 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
                 });
             });
         } catch (error) {
-            console.error(`Error procesando ${pakFile}:`, error.message);
+            console.error(`Error processing ${pakFile}:`, error.message);
         }
     }
 
     // Ordenar por prioridad ascendente (menor índice = mayor prioridad)
-    allXmls.sort((a, b) => b.priority - a.priority);
+    allXmls.sort((a, b) => a.priority - b.priority);
     
     return {
         xmls: allXmls,
@@ -159,7 +159,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
 }
 
 // Función para combinar XMLs
-async function combineXmls(xmlFiles) {
+async function combineXmls(xmlFiles, combineOnlyConflicts = false) {
     const parser = new xml2js.Parser({
         explicitArray: true,
         preserveChildrenOrder: true,
@@ -173,50 +173,126 @@ async function combineXmls(xmlFiles) {
         xmldec: { version: '1.0', encoding: 'us-ascii' }
     });
 
+    // Mapa de presetName a lista de {preset, priority, modId}
     const presetMap = new Map();
 
+    // 1. Recopilar todos los presets con su prioridad
     for (const xmlFile of xmlFiles) {
         try {
             const parsed = await parser.parseStringPromise(xmlFile.content);
             const presets = parsed.database?.InventoryPresets?.[0]?.InventoryPreset;
-
             if (!presets) continue;
-
             const presetArray = Array.isArray(presets) ? presets : [presets];
-
             for (const preset of presetArray) {
                 const presetName = preset.$.Name;
                 if (!presetName) continue;
-
                 if (!presetMap.has(presetName)) {
-                    presetMap.set(presetName, {
-                        attributes: preset.$,
-                        elements: new Map()
-                    });
+                    presetMap.set(presetName, []);
                 }
-
-                const existingPreset = presetMap.get(presetName);
-
-                Object.keys(preset).forEach(childType => {
-                    if (childType === '$') return;
-
-                    if (!existingPreset.elements.has(childType)) {
-                        existingPreset.elements.set(childType, new Map());
-                    }
-
-                    const elements = Array.isArray(preset[childType]) ? preset[childType] : [preset[childType]];
-                    
-                    elements.forEach(element => {
-                        const key = generateElementKey(element);
-                        existingPreset.elements.get(childType).set(key, element);
-                    });
+                presetMap.get(presetName).push({
+                    preset,
+                    priority: xmlFile.priority, // prioridad del mod según mod_order, -1 si no existe
+                    modId: xmlFile.modId
                 });
             }
         } catch (err) {
-            console.error(`Error procesando ${xmlFile.fileName}:`, err);
+            console.error(`Error processing ${xmlFile.fileName}:`, err);
         }
     }
 
+    // Función auxiliar para calcular "puntaje" de atributos numéricos
+    function calculateNumericScore(attrs) {
+        return Object.values(attrs).reduce((sum, val) => {
+            const num = parseFloat(val);
+            return sum + (isNaN(num) ? 0 : num);
+        }, 0);
+    }
+
+    // Función auxiliar para combinar PresetItem de presets conflictivos
+    function mergePresetItems(presetObjs) {
+        const itemMap = new Map();
+        // Iterar por cada preset de la lista
+        presetObjs.forEach(presetObj => {
+            const presetItems = presetObj.preset.PresetItem || [];
+            presetItems.forEach(item => {
+                const itemName = item.$.Name;
+                // Agregar prioridad del mod al item si no existe
+                if (typeof item.modPriority === 'undefined') {
+                    item.modPriority = presetObj.priority;
+                }
+                if (!itemMap.has(itemName)) {
+                    itemMap.set(itemName, item);
+                } else {
+                    const existingItem = itemMap.get(itemName);
+                    // Si se tiene mod_order (priority distinto de -1) se usa para comparar
+                    if (presetObj.priority !== -1 || existingItem.modPriority !== -1) {
+                        // Si la prioridad actual es definida y es menor (mayor prioridad) que la existente, reemplazar
+                        if (presetObj.priority !== -1 && (existingItem.modPriority === -1 || presetObj.priority < existingItem.modPriority)) {
+                            item.modPriority = presetObj.priority;
+                            itemMap.set(itemName, item);
+                        }
+                    } else {
+                        // Si no hay mod_order, comparar cantidad de atributos
+                        const currentAttrs = Object.keys(item.$).length;
+                        const existingAttrs = Object.keys(existingItem.$).length;
+                        if (currentAttrs > existingAttrs) {
+                            itemMap.set(itemName, item);
+                        } else if (currentAttrs === existingAttrs) {
+                            // Si tienen la misma cantidad, comparar valores numéricos
+                            const currentScore = calculateNumericScore(item.$);
+                            const existingScore = calculateNumericScore(existingItem.$);
+                            if (currentScore > existingScore) {
+                                itemMap.set(itemName, item);
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Eliminar modPriority de todos los items antes de retornar
+        const cleanedItems = Array.from(itemMap.values()).map(item => {
+            delete item.modPriority; // Remove the temporary property
+            return item;
+        });
+        
+        return cleanedItems;
+    }    
+
+    // 2. Seleccionar y combinar los presets y resolver conflictos
+    const selectedPresets = [];
+
+    for (const [presetName, presets] of presetMap) {
+        let selectedPreset;
+        if (presets.length > 1) {
+            // Ordenar por prioridad (menor valor = mayor prioridad)
+            const sortedPresets = presets.sort((a, b) => a.priority - b.priority);
+            const winnerMod = sortedPresets[0].modId;
+            console.info(`CONFLICT: ${presetName} - Mods: ${presets.map(p => p.modId).join(', ')}. Winner: ${winnerMod} (Priority: ${sortedPresets[0].priority})`);
+            // Combinar todos los PresetItem de los presets conflictivos
+            const mergedItems = mergePresetItems(presets);
+            // Usar el preset ganador como base
+            selectedPreset = JSON.parse(JSON.stringify(sortedPresets[0].preset));
+            selectedPreset.PresetItem = mergedItems;
+        } else {
+            // Solo hay un preset; combinar en caso de duplicados internos
+            selectedPreset = JSON.parse(JSON.stringify(presets[0].preset));
+            const mergedItems = mergePresetItems(presets);
+            selectedPreset.PresetItem = mergedItems;
+        }
+        selectedPresets.push(selectedPreset);
+    }
+
+    // 3. Filtrar presets si combineOnlyConflicts es true
+    let finalPresets = selectedPresets;
+    if (combineOnlyConflicts) {
+        finalPresets = selectedPresets.filter(preset => {
+            const presetsForName = presetMap.get(preset.$.Name);
+            return presetsForName.length > 1; // Solo incluir presets con conflictos
+        });
+    }
+
+    // 4. Construir el XML combinado
     const combinedXml = {
         database: {
             '$': {
@@ -226,18 +302,7 @@ async function combineXmls(xmlFiles) {
             },
             InventoryPresets: {
                 '$': { version: '2' },
-                InventoryPreset: Array.from(presetMap.values()).map(preset => {
-                    const result = { '$': preset.attributes };
-                    preset.elements.forEach((elementsMap, childType) => {
-                        result[childType] = Array.from(elementsMap.values()).map(element => {
-                            // Correción clave: Manejar texto opcional
-                            const obj = { $: element.$ };
-                            if (element._) obj._ = element._;
-                            return obj;
-                        });
-                    });
-                    return result;
-                })
+                InventoryPreset: finalPresets
             }
         }
     };
@@ -245,11 +310,12 @@ async function combineXmls(xmlFiles) {
     return builder.buildObject(combinedXml);
 }
 
-// Función clave de elemento
-function generateElementKey(element) {
-    const attrs = element.$ || {};
-    const sortedKeys = Object.keys(attrs).sort();
-    return sortedKeys.map(key => `${key}=${attrs[key]}`).join('|');
+// Función auxiliar para calcular "puntaje" de atributos numéricos
+function calculateNumericScore(attrs) {
+    return Object.values(attrs).reduce((sum, val) => {
+        const num = parseFloat(val);
+        return sum + (isNaN(num) ? 0 : num);
+    }, 0);
 }
 
 // Funciones auxiliares
@@ -300,20 +366,22 @@ async function createModManifest(modsPath) {
 
 async function updateModOrder(modsPath) {
     const modOrderPath = path.join(modsPath, 'mod_order.txt');
-    let modOrder = '';
     try {
-        modOrder = await fs.readFile(modOrderPath, 'utf8');
-    } catch (e) {}
-
-    if (!modOrder.includes('ipmtool')) {
-        modOrder += '\nipmtool';
-        await fs.writeFile(modOrderPath, modOrder.trim());
+        let modOrder = await fs.readFile(modOrderPath, 'utf8');
+        if (!modOrder.includes('ipmtool')) {
+            modOrder += '\nipmtool';
+            await fs.writeFile(modOrderPath, modOrder.trim());
+        }
+    } catch (e) {
+        // Si el archivo no existe, simplemente no hacemos nada.
+        if (e.code !== 'ENOENT') throw e;
     }
 }
 
 // Función principal
 async function searchAndMerge(modsPath, options = {}) {
     const logger = new Logger();
+    const { onProcessingFile, combineOnlyConflicts = false } = options;
     
     try {
         logger.info(`Starting process in: ${modsPath}`);
@@ -330,7 +398,7 @@ async function searchAndMerge(modsPath, options = {}) {
 
         const { xmls: xmlFiles, modIds } = await extractRelevantXmls(pakFiles, modOrder, (fileName) => {
             logger.xmlFiles.push(fileName);
-            options.onProcessingFile?.(fileName);
+            onProcessingFile?.(fileName);
         });
 
         xmlFiles.forEach(xml => {
@@ -345,7 +413,7 @@ async function searchAndMerge(modsPath, options = {}) {
             throw new Error('No relevant XML files were found in the PAKs');
         }
 
-        const combinedXml = await combineXmls(xmlFiles);
+        const combinedXml = await combineXmls(xmlFiles, combineOnlyConflicts);
         await createIpmPak(combinedXml, modsPath);
         await createModManifest(modsPath);
         await updateModOrder(modsPath);
@@ -356,7 +424,7 @@ async function searchAndMerge(modsPath, options = {}) {
             success: true, 
             message: 'Ipmtool .pak file has been created and mod_order updated.',
             combinedMods: modIds,
-            logContent: logger.getLogContent() // Nuevo campo
+            logContent: logger.getLogContent()
         };
     } catch (error) {
         logger.error(`${error.message}`);

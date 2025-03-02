@@ -1,44 +1,69 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Merge Processor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
     <link rel="stylesheet" href="styles.css">
+    <title>IPM Tool</title>
 </head>
 <body>
-    <div id="title-bar">
-        <div id="title-bar-btns">
-            <button id="minimize-btn"><img src="assets/minimize-btn.png" alt="Minimize"></button>
-            <button id="close-btn"><img src="assets/close-btn.webp" alt="Close"></button>
+    <div id="titlebar">
+        <div id="window-title">IPM Tool - Inventory Preset Merger</div>
+        <div id="window-controls">
+            <button id="minimize-btn">&#8211;</button>
+            <button id="maximize-btn">&#9744;</button>
+            <button id="close-btn">&#10005;</button>
         </div>
     </div>
 
-    <div class="container">
-        <div class="top-section">
-            <h1>InventoryPreset Merge Tool</h1>
-            <div>
-                <label>Mods Folder Path:</label>
-                <input type="text" id="modsPath" readonly>
-                <button id="selectModsPath"><span>Select</span></button>
+    <div id="config-section">
+        <div id="path-selection">
+            <label for="modsPath">Mods Directory:</label>
+            <input type="text" id="modsPath" placeholder="Select your mods folder" readonly>
+            <button id="selectModsPath">Browse...</button>
+        </div>
+        
+        <div id="merge-options">
+            <div class="option">
+                <input type="radio" id="combineAllMods" name="mergeOption" checked>
+                <label for="combineAllMods">Combine all mods</label>
+            </div>
+            <div class="option">
+                <input type="radio" id="combineOnlyConflicts" name="mergeOption">
+                <label for="combineOnlyConflicts">Combine only conflicted mods</label>
             </div>
         </div>
     </div>
 
-    <button id="searchAndMerge">Search & Merge</button>
-
     <div id="processing" style="display: none;">
-        <p>Processing...</p>
-        <ul id="processingList"></ul>
-    </div>
-
-    <div id="result" style="display: none;">
-        <p id="resultMessage"></p>
-        <div id="combinedMods" style="display: none;">
-            <h3>Combined Mods</h3>
-            <ul id="modsList"></ul>
+        <h3>Processing Files...</h3>
+        <div id="processing-container">
+            <ul id="processingList"></ul>
         </div>
     </div>
 
-    <script src="renderer.js"></script>
+    <div id="result" style="display: none;">
+        <h3>Process Complete</h3>
+        <p id="resultMessage"></p>
+        
+        <div id="combinedMods" style="display: none;">
+            <h4>Combined Mods:</h4>
+            <ul id="modsList"></ul>
+        </div>
+    
+        <div id="log-section">
+            <h4>Process Log:</h4>
+            <div id="log-container">
+                <pre id="logContent"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div id="action-section">
+        <button id="searchAndMerge">Search & Merge</button>
+    </div>
+
+    <script src="./renderer.js"></script>
 </body>
 </html>
