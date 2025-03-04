@@ -1,6 +1,6 @@
 ## Prerequisites
 
-* **[Node.js](https://nodejs.org/en/download) and npm:** Ensure you have Node.js and npm (Node Package Manager) installed on your system.
+* **[Node.js](https://nodejs.org/en/download):** Ensure you have Node.js and npm (Node Package Manager) installed on your system.
 * **[Git](https://git-scm.com/downloads/win) (Optional):** Git is required if you want to clone the repository. Alternatively, you can download the source code as a ZIP file.
 
 ## Using Git
