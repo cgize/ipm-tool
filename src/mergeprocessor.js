@@ -51,71 +51,62 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false) {
         }
     }
 
-    function calculateNumericScore(attrs) {
-        return Object.values(attrs).reduce((sum, val) => {
-            const num = parseFloat(val);
-            return sum + (isNaN(num) ? 0 : num);
-        }, 0);
-    }
-
     function mergePresetItems(presetObjs) {
+        // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
+        const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
+        
+        // Tomamos el preset base del mod con mayor prioridad
+        const basePreset = sortedPresets[0];
+        
+        // Creamos un mapa para almacenar todos los PresetItems por su nombre
         const itemMap = new Map();
-        presetObjs.forEach(presetObj => {
+        
+        // Procesamos todos los presets en orden de prioridad (de mayor a menor)
+        for (const presetObj of sortedPresets) {
             const presetItems = presetObj.preset.PresetItem || [];
             const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-            itemArray.forEach(item => {
+            
+            // Procesamos cada PresetItem
+            for (const item of itemArray) {
                 const itemName = item["@_Name"];
-                if (typeof item.modPriority === 'undefined') {
-                    item.modPriority = presetObj.priority;
-                }
+                if (!itemName) continue;
+                
+                // Si este item no existe en el mapa o viene de un mod con mayor prioridad,
+                // lo añadimos/reemplazamos en el mapa
                 if (!itemMap.has(itemName)) {
                     itemMap.set(itemName, item);
-                } else {
-                    const existingItem = itemMap.get(itemName);
-                    if (presetObj.priority !== -1 || existingItem.modPriority !== -1) {
-                        if (presetObj.priority !== -1 && (existingItem.modPriority === -1 || presetObj.priority < existingItem.modPriority)) {
-                            item.modPriority = presetObj.priority;
-                            itemMap.set(itemName, item);
-                        }
-                    } else {
-                        const currentAttrs = Object.keys(item).filter(key => key.startsWith('@_')).length;
-                        const existingAttrs = Object.keys(existingItem).filter(key => key.startsWith('@_')).length;
-                        if (currentAttrs > existingAttrs) {
-                            itemMap.set(itemName, item);
-                        } else if (currentAttrs === existingAttrs) {
-                            const currentScore = calculateNumericScore(item);
-                            const existingScore = calculateNumericScore(existingItem);
-                            if (currentScore > existingScore) {
-                                itemMap.set(itemName, item);
-                            }
-                        }
-                    }
                 }
-            });
-        });
-
-        const cleanedItems = Array.from(itemMap.values()).map(item => {
-            delete item.modPriority;
-            return item;
-        });
-
-        return cleanedItems;
+                // No reemplazamos items que ya existen porque los hemos procesado
+                // en orden de prioridad de mayor a menor
+            }
+        }
+        
+        // Convertimos el mapa a un array
+        return Array.from(itemMap.values());
     }
 
     const selectedPresets = [];
     for (const [presetName, presets] of presetMap) {
         let selectedPreset;
         if (presets.length > 1) {
+            // Ordenamos por prioridad (el número más bajo indica mayor prioridad)
             const sortedPresets = presets.sort((a, b) => a.priority - b.priority);
             const winnerMod = sortedPresets[0].modId;
             console.info(`CONFLICT: ${presetName} - Mods: ${presets.map(p => p.modId).join(', ')}. Winner: ${winnerMod} (Priority: ${sortedPresets[0].priority})`);
-            const mergedItems = mergePresetItems(presets);
+            
+            // Tomamos la estructura base del mod con mayor prioridad
             selectedPreset = JSON.parse(JSON.stringify(sortedPresets[0].preset));
+            
+            // Fusionamos los PresetItems
+            const mergedItems = mergePresetItems(presets);
             selectedPreset.PresetItem = mergedItems;
         } else {
+            // Si no hay conflicto, tomamos el preset tal cual
             selectedPreset = JSON.parse(JSON.stringify(presets[0].preset));
-            const mergedItems = mergePresetItems(presets);
-            selectedPreset.PresetItem = mergedItems;
+            
+            // Aseguramos que PresetItem sea un array para consistencia
+            const presetItems = selectedPreset.PresetItem || [];
+            selectedPreset.PresetItem = Array.isArray(presetItems) ? presetItems : [presetItems];
         }
         selectedPresets.push(selectedPreset);
     }
@@ -126,6 +117,11 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false) {
             const presetsForName = presetMap.get(preset["@_Name"]);
             return presetsForName.length > 1;
         });
+    }
+
+    // Aseguramos que finalPresets sea siempre un array
+    if (finalPresets.length === 0) {
+        finalPresets = [];
     }
 
     const combinedXml = {
@@ -169,13 +165,13 @@ async function createModManifest(modsPath) {
     const manifestContent = {
         kcd_mod: {
             info: {
-                name: 'IPM Tool',
-                modid: 'ipmtool',
-                description: 'App to merge xml inventorypreset',
-                author: 'cgize',
-                version: '1.0',
-                created_on: '',
-                modifies_level: 'false'
+                "@_name": "IPM Tool",
+                "@_modid": "ipmtool",
+                "@_description": "App to merge xml inventorypreset",
+                "@_author": "cgize",
+                "@_version": "1.0",
+                "@_created_on": "",
+                "@_modifies_level": "false"
             }
         }
     };
@@ -183,7 +179,9 @@ async function createModManifest(modsPath) {
     const builder = new XMLBuilder({
         format: true,
         indentBy: "\t",
-        suppressEmptyNode: false
+        suppressEmptyNode: false,
+        ignoreAttributes: false,
+        attributeNamePrefix: "@_"
     });
 
     const xml = builder.build(manifestContent);
