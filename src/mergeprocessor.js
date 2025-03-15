@@ -204,19 +204,26 @@ async function updateModOrder(modsPath) {
 // Función principal
 async function searchAndMerge(modsPath, options = {}) {
     const logger = new Logger();
-    const { onProcessingFile, combineOnlyConflicts = false } = options;
+    const { onProcessingFile, combineOnlyConflicts = false, steamModsPath = null } = options;
 
     try {
         logger.info(`Starting process in: ${modsPath}`);
+        
+        // Si se proporciona una ruta de Steam Workshop, la registramos en el log
+        if (steamModsPath) {
+            logger.info(`Including Steam Workshop mods from: ${steamModsPath}`);
+        }
+        
         const modOrder = await getModOrder(modsPath);
         logger.info(`Detected mod order: ${modOrder.join(', ') || 'None'}`);
 
-        const pakFiles = await findPakFiles(modsPath);
+        // Pasamos la ruta de Steam Workshop a findPakFiles
+        const pakFiles = await findPakFiles(modsPath, steamModsPath);
         logger.pakFiles = pakFiles;
         logger.info(`PAK files found: ${pakFiles.length}`);
 
         if (pakFiles.length === 0) {
-            throw new Error('No PAK files were found in the specified path');
+            throw new Error('No PAK files were found in the specified paths');
         }
 
         const { xmls: xmlFiles, modIds } = await extractRelevantXmls(pakFiles, modOrder, (fileName) => {

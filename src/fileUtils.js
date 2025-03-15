@@ -6,26 +6,48 @@ const { XMLParser } = require('fast-xml-parser');
 
 /**
  * Busca de forma recursiva todos los archivos .pak en el directorio especificado
+ * y opcionalmente también en el directorio de Steam Workshop
  * @param {string} modsPath - Ruta del directorio de mods
+ * @param {string|null} steamModsPath - Ruta del directorio de mods de Steam Workshop (opcional)
  * @returns {Promise<string[]>} - Lista de rutas completas a los archivos .pak encontrados
  */
-async function findPakFiles(modsPath) {
+async function findPakFiles(modsPath, steamModsPath = null) {
     async function searchDir(dir) {
         let pakFiles = [];
-        const entries = await fs.readdir(dir, { withFileTypes: true });
+        try {
+            const entries = await fs.readdir(dir, { withFileTypes: true });
 
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                pakFiles = pakFiles.concat(await searchDir(fullPath));
-            } else if (entry.isFile() && entry.name.endsWith('.pak')) {
-                pakFiles.push(fullPath);
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                // Omitir la carpeta ipmtool para evitar procesar archivos previamente generados
+                if (entry.isDirectory() && entry.name !== 'ipmtool') {
+                    pakFiles = pakFiles.concat(await searchDir(fullPath));
+                } else if (entry.isFile() && entry.name.endsWith('.pak')) {
+                    pakFiles.push(fullPath);
+                }
             }
+        } catch (error) {
+            console.error(`Error reading directory ${dir}: ${error.message}`);
         }
         return pakFiles;
     }
 
-    return await searchDir(modsPath);
+    // Buscar en el directorio principal de mods
+    let allPakFiles = await searchDir(modsPath);
+    
+    // Si se proporciona un directorio de Steam Workshop, buscar también allí
+    if (steamModsPath) {
+        try {
+            // Verificar que el directorio existe antes de buscar en él
+            await fs.access(steamModsPath);
+            const steamPakFiles = await searchDir(steamModsPath);
+            allPakFiles = allPakFiles.concat(steamPakFiles);
+        } catch (error) {
+            console.error(`Error accessing Steam Workshop directory: ${error.message}`);
+        }
+    }
+    
+    return allPakFiles;
 }
 
 /**
@@ -55,6 +77,11 @@ async function getModOrder(modsPath) {
 async function extractModIdFromPak(pakFilePath) {
     const modFolder = path.dirname(path.dirname(pakFilePath));
     const manifestPath = path.join(modFolder, 'mod.manifest');
+    
+    // Verificar si es una carpeta de Steam Workshop (típicamente un número)
+    const folderName = path.basename(modFolder);
+    const isSteamWorkshopMod = /^\d+$/.test(folderName);
+    
     try {
         await fs.access(manifestPath);
         const manifestContent = await fs.readFile(manifestPath, 'utf8');
@@ -70,9 +97,34 @@ async function extractModIdFromPak(pakFilePath) {
         if (parsedManifest?.kcd_mod?.info?.["@_name"]) {
             return parsedManifest.kcd_mod.info["@_name"].toLowerCase().replace(/\s+/g, '_');
         }
-    } catch (error) {}
+    } catch (error) {
+        // Si hay un error al leer el manifiesto y es un mod de Steam Workshop,
+        // intentamos buscar otros indicadores del ID del mod
+        if (isSteamWorkshopMod) {
+            try {
+                // Buscar cualquier archivo XML dentro del directorio que pueda contener información del mod
+                const files = await fs.readdir(modFolder, { withFileTypes: true });
+                for (const file of files) {
+                    if (file.isFile() && file.name.endsWith('.xml')) {
+                        const content = await fs.readFile(path.join(modFolder, file.name), 'utf8');
+                        // Buscar patrones comunes de ID de mod en el contenido
+                        const modIdMatch = content.match(/modid="([^"]+)"/i) || content.match(/name="([^"]+)"/i);
+                        if (modIdMatch && modIdMatch[1]) {
+                            return modIdMatch[1].toLowerCase().replace(/\s+/g, '_');
+                        }
+                    }
+                }
+            } catch (subError) {
+                // Si falla la búsqueda secundaria, continuamos con el método estándar
+            }
+        }
+    }
     
-    const folderName = path.basename(modFolder);
+    // Si es un mod de Steam Workshop, añadir un prefijo para mejor identificación
+    if (isSteamWorkshopMod) {
+        return `steam_${folderName}`.toLowerCase().replace(/\s+/g, '_');
+    }
+    
     return folderName.toLowerCase().replace(/\s+/g, '_');
 }
 
@@ -85,6 +137,7 @@ async function extractModIdFromPak(pakFilePath) {
  */
 async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
     const allXmls = [];
+    const processedModIds = new Set();
 
     for (const pakFile of pakFiles) {
         let modId;
@@ -94,6 +147,10 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
         } catch (error) {
             console.error(`Error getting modId from ${pakFile}: ${error.message}`);
             modId = null;
+        }
+
+        if (modId) {
+            processedModIds.add(modId);
         }
 
         try {
@@ -110,7 +167,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
 
                             zip.openReadStream(entry, async (err, readStream) => {
                                 if (err) return;
-                                if (onProcessingFile) onProcessingFile(entry.fileName);
+                                if (onProcessingFile) onProcessingFile(`${modId} - ${entry.fileName}`);
 
                                 let xmlContent = '';
                                 readStream.on('data', (chunk) => xmlContent += chunk);
@@ -149,7 +206,7 @@ async function extractRelevantXmls(pakFiles, modOrder, onProcessingFile) {
     
     return {
         xmls: allXmls,
-        modIds: [...new Set(allXmls.map(xml => xml.modId).filter(id => id !== null))]
+        modIds: Array.from(processedModIds)
     };
 }
 

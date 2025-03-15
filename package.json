@@ -22,6 +22,7 @@
     "@electron/remote": "^2.1.2",
     "7zip-bin": "^5.2.0",
     "adm-zip": "^0.5.16",
+    "electron-json-storage": "^4.6.0",
     "fast-xml-parser": "^5.0.8",
     "node-7z": "^3.0.0",
     "xml2js": "^0.6.2",
