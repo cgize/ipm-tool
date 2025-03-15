@@ -2,6 +2,7 @@ const { searchAndMerge } = require('./mergeprocessor.js');
 const { dialog } = require('@electron/remote');
 const path = require('path');
 const remote = require('@electron/remote');
+const { ipcRenderer } = require('electron'); // Importar directamente de electron, no de remote
 const fs = require('fs').promises;
 const storage = require('electron-json-storage');
 const app = remote.app;
@@ -94,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Solo limpiar ipmtool cuando se selecciona la ruta principal de mods
             if (inputElement === modsPathInput) {
-                const ipmToolPath = path.join(selectedPath, 'ipmtool');
+                const ipmToolPath = path.join(selectedPath, 'zipmtool');
                 try {
                     await fs.access(ipmToolPath);
                     await fs.rm(ipmToolPath, { recursive: true, force: true });
@@ -151,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         // Limpiar carpeta ipmtool antes de comenzar
-        const ipmToolPath = path.join(modsPath, 'ipmtool');
+        const ipmToolPath = path.join(modsPath, 'zipmtool');
         try {
             await fs.rm(ipmToolPath, { recursive: true, force: true });
         } catch (err) {
@@ -187,41 +188,85 @@ document.addEventListener('DOMContentLoaded', () => {
                 processingList.appendChild(li);
             },
             combineOnlyConflicts: combineOnlyConflicts,
-            steamModsPath: steamModsPath // Pass steam mods path to the processor
+            steamModsPath: steamModsPath
         };
 
         try {
+            // Primera fase: búsqueda de mods y detección de conflictos
             const result = await searchAndMerge(modsPath, options);
-            const logPath = path.join(modsPath, 'ipmtool', 'ipmtool.log');
-            await fs.writeFile(logPath, result.logContent);
-
-            // Actualizar UI
-            resultDiv.style.display = 'block';
-            resultMessage.textContent = result.message;
-            logContentElement.textContent = result.logContent;
-
-            // Mostrar mods combinados
-            const modsList = document.getElementById('modsList');
-            const combinedModsDiv = document.getElementById('combinedMods');
-            modsList.innerHTML = '';
             
-            if (result.combinedMods.length > 0) {
-                combinedModsDiv.style.display = 'block';
-                result.combinedMods.forEach(modId => {
-                    const li = document.createElement('li');
-                    li.textContent = modId;
-                    modsList.appendChild(li);
+            // Comprobar si se necesita ordenación manual de mods
+            if (result.needsManualOrder && result.conflicts && result.conflicts.length > 0) {
+                processingDiv.style.display = 'none';
+                
+                // Mostrar ventana de resolución de conflictos
+                const resolutionResult = await ipcRenderer.invoke('show-conflict-resolution', {
+                    conflicts: result.conflicts,
+                    modDetails: result.modDetails
                 });
+                
+                if (resolutionResult.cancelled) {
+                    // El usuario canceló la resolución de conflictos
+                    resultDiv.style.display = 'block';
+                    resultMessage.textContent = 'Proceso cancelado por el usuario';
+                    logContentElement.textContent = result.logContent;
+                    return;
+                }
+                
+                // Reanudar proceso con el orden manual
+                processingDiv.style.display = 'block';
+                
+                // Segunda fase: combinar con el orden manual
+                const manualOptions = {
+                    ...options,
+                    manualModOrder: resolutionResult.manualModOrder
+                };
+                
+                const finalResult = await searchAndMerge(modsPath, manualOptions);
+                
+                // Mostrar resultado final
+                updateUIWithResult(finalResult);
+                
+                // Guardar log
+                const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
+                await fs.writeFile(logPath, finalResult.logContent);
             } else {
-                combinedModsDiv.style.display = 'none';
+                // Proceso normal sin conflictos que requieran intervención manual
+                updateUIWithResult(result);
+                
+                // Guardar log
+                const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
+                await fs.writeFile(logPath, result.logContent);
             }
-
         } catch (error) {
             resultDiv.style.display = 'block';
             resultMessage.textContent = error.message;
             logContentElement.textContent = error.logContent || 'No log available';
-        } finally {
             processingDiv.style.display = 'none';
         }
     });
+    
+    // Función para actualizar la UI con los resultados
+    function updateUIWithResult(result) {
+        resultDiv.style.display = 'block';
+        resultMessage.textContent = result.message;
+        logContentElement.textContent = result.logContent;
+        processingDiv.style.display = 'none';
+
+        // Mostrar mods combinados
+        const modsList = document.getElementById('modsList');
+        const combinedModsDiv = document.getElementById('combinedMods');
+        modsList.innerHTML = '';
+        
+        if (result.combinedMods && result.combinedMods.length > 0) {
+            combinedModsDiv.style.display = 'block';
+            result.combinedMods.forEach(modId => {
+                const li = document.createElement('li');
+                li.textContent = modId;
+                modsList.appendChild(li);
+            });
+        } else {
+            combinedModsDiv.style.display = 'none';
+        }
+    }
 });

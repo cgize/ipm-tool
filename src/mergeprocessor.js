@@ -7,7 +7,7 @@ const Logger = require('./logger');
 const { findPakFiles, getModOrder, extractModIdFromPak, extractRelevantXmls } = require('./fileUtils');
 
 // Función para combinar XMLs
-async function combineXmls(xmlFiles, combineOnlyConflicts = false) {
+async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrder = null) {
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: "@_",
@@ -25,6 +25,19 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false) {
     });
 
     const presetMap = new Map();
+
+    // Si hay un orden manual, reasignar las prioridades de los XMLs
+    if (manualModOrder && manualModOrder.length > 0) {
+        for (const xmlFile of xmlFiles) {
+            const modIndex = manualModOrder.indexOf(xmlFile.modId);
+            if (modIndex !== -1) {
+                // Prioridad inversa: el índice 0 (primera posición) es la más alta prioridad
+                xmlFile.priority = manualModOrder.length - modIndex;
+            }
+        }
+        // Reordenar los XMLs según la nueva prioridad
+        xmlFiles.sort((a, b) => b.priority - a.priority);
+    }
 
     for (const xmlFile of xmlFiles) {
         try {
@@ -149,24 +162,24 @@ async function ensureDirectoryExists(dirPath) {
 }
 
 async function createIpmPak(combinedXml, modsPath) {
-    const ipmDataPath = path.join(modsPath, 'ipmtool', 'Data');
+    const ipmDataPath = path.join(modsPath, 'zipmtool', 'Data');
     await ensureDirectoryExists(ipmDataPath);
 
     const zip = new AdmZip();
     zip.addFile('Libs/Tables/item/InventoryPreset__ipmtool.xml', Buffer.from(combinedXml));
 
-    await fs.writeFile(path.join(ipmDataPath, 'ipmtool.pak'), zip.toBuffer());
+    await fs.writeFile(path.join(ipmDataPath, 'zipmtool.pak'), zip.toBuffer());
 }
 
 async function createModManifest(modsPath) {
-    const ipmPath = path.join(modsPath, 'ipmtool');
+    const ipmPath = path.join(modsPath, 'zipmtool');
     await ensureDirectoryExists(ipmPath);
 
     const manifestContent = {
         kcd_mod: {
             info: {
                 "@_name": "IPM Tool",
-                "@_modid": "ipmtool",
+                "@_modid": "zipmtool",
                 "@_description": "App to merge xml inventorypreset",
                 "@_author": "cgize",
                 "@_version": "1.0",
@@ -192,7 +205,7 @@ async function updateModOrder(modsPath) {
     const modOrderPath = path.join(modsPath, 'mod_order.txt');
     try {
         let modOrder = await fs.readFile(modOrderPath, 'utf8');
-        if (!modOrder.includes('ipmtool')) {
+        if (!modOrder.includes('zipmtool')) {
             modOrder += '\nipmtool';
             await fs.writeFile(modOrderPath, modOrder.trim());
         }
@@ -204,7 +217,12 @@ async function updateModOrder(modsPath) {
 // Función principal
 async function searchAndMerge(modsPath, options = {}) {
     const logger = new Logger();
-    const { onProcessingFile, combineOnlyConflicts = false, steamModsPath = null } = options;
+    const { 
+        onProcessingFile, 
+        combineOnlyConflicts = false, 
+        steamModsPath = null,
+        manualModOrder = null 
+    } = options;
 
     try {
         logger.info(`Starting process in: ${modsPath}`);
@@ -214,8 +232,9 @@ async function searchAndMerge(modsPath, options = {}) {
             logger.info(`Including Steam Workshop mods from: ${steamModsPath}`);
         }
         
-        const modOrder = await getModOrder(modsPath);
-        logger.info(`Detected mod order: ${modOrder.join(', ') || 'None'}`);
+        const modOrderData = await getModOrder(modsPath);
+        logger.info(`Detected mod order: ${modOrderData.modOrder.join(', ') || 'None'}`);
+        logger.info(`Mod order file exists: ${modOrderData.exists ? 'Yes' : 'No'}`);
 
         // Pasamos la ruta de Steam Workshop a findPakFiles
         const pakFiles = await findPakFiles(modsPath, steamModsPath);
@@ -226,10 +245,12 @@ async function searchAndMerge(modsPath, options = {}) {
             throw new Error('No PAK files were found in the specified paths');
         }
 
-        const { xmls: xmlFiles, modIds } = await extractRelevantXmls(pakFiles, modOrder, (fileName) => {
+        const extractResult = await extractRelevantXmls(pakFiles, modOrderData, (fileName) => {
             logger.xmlFiles.push(fileName);
             onProcessingFile?.(fileName);
         });
+
+        const { xmls: xmlFiles, modIds, conflicts, needsManualOrder, modDetails } = extractResult;
 
         xmlFiles.forEach(xml => {
             const modData = logger.combinedMods.get(xml.modId) || { priority: xml.priority, xmls: [] };
@@ -238,15 +259,35 @@ async function searchAndMerge(modsPath, options = {}) {
         });
 
         logger.info(`Relevant XMLs processed: ${xmlFiles.length}`);
+        logger.info(`Conflicts detected: ${conflicts.length}`);
 
         if (xmlFiles.length === 0) {
             throw new Error('No relevant XML files were found in the PAKs');
         }
 
-        const combinedXml = await combineXmls(xmlFiles, combineOnlyConflicts);
+        // Comprobar si necesitamos ordenación manual
+        if (needsManualOrder && !manualModOrder) {
+            // Devolvemos la información necesaria para que la interfaz muestre la pantalla de priorización
+            return {
+                success: false,
+                needsManualOrder: true,
+                conflicts: conflicts,
+                modDetails: Array.from(modDetails.values()),
+                message: 'Se encontraron conflictos entre mods. Por favor, establece el orden de prioridad.',
+                logContent: logger.getLogContent()
+            };
+        }
+
+        // Si llegamos aquí, o bien no se necesita ordenación manual o ya se ha proporcionado
+        const combinedXml = await combineXmls(xmlFiles, combineOnlyConflicts, manualModOrder);
         await createIpmPak(combinedXml, modsPath);
         await createModManifest(modsPath);
         await updateModOrder(modsPath);
+
+        // Si se ha usado un orden manual, lo registramos en el log
+        if (manualModOrder && manualModOrder.length > 0) {
+            logger.info(`Used manual mod order: ${manualModOrder.join(', ')}`);
+        }
 
         logger.info('Process completed successfully');
 

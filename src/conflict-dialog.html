@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'">
+    <link rel="stylesheet" href="styles.css">
+    <title>Mod Conflict Resolution</title>
+    <style>
+        #conflict-container {
+            padding: 20px;
+            height: calc(100vh - 152px); /* Total height - titlebar - buttons */
+            overflow-y: auto;
+        }
+        
+        .conflict-group {
+            background-color: var(--secondary-bg-color);
+            border-radius: 6px;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .conflict-header {
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-color);
+        }
+        
+        .conflict-description {
+            margin-bottom: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #b0b0b0;
+        }
+        
+        .mod-priority-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .mod-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: var(--tertiary-bg-color);
+            border: 1px solid var(--border-color);
+            margin-bottom: 8px;
+            border-radius: 4px;
+            cursor: grab;
+        }
+        
+        .mod-item:active {
+            cursor: grabbing;
+        }
+        
+        .mod-item.dragging {
+            opacity: 0.5;
+            background-color: var(--accent-color);
+        }
+        
+        .mod-info {
+            flex: 1;
+        }
+        
+        .mod-name {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .mod-details {
+            font-size: 12px;
+            color: #b0b0b0;
+        }
+        
+        .mod-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .move-up, .move-down {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            background-color: var(--button-bg-color);
+            border-radius: 4px;
+        }
+        
+        .move-up:hover, .move-down:hover {
+            background-color: var(--button-hover-color);
+        }
+        
+        .mod-item:first-child .move-up, 
+        .mod-item:last-child .move-down {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .instructions {
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: var(--secondary-bg-color);
+            border-radius: 6px;
+            line-height: 1.5;
+            font-size: 14px;
+            color: #b0b0b0;
+        }
+        
+        .priority-info {
+            background-color: rgba(8, 88, 36, 0.2);
+            border-left: 4px solid var(--accent-color);
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        
+        #action-buttons {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            background-color: var(--secondary-bg-color);
+            border-top: 1px solid var(--tertiary-bg-color);
+        }
+        
+        #cancel-btn {
+            background-color: var(--button-bg-color);
+            color: var(--text-color);
+            border: none;
+            border-radius: 4px;
+            height: 46px;
+            padding: 0 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        #cancel-btn:hover {
+            background-color: var(--button-hover-color);
+        }
+        
+        #apply-order-btn {
+            background-color: var(--accent-color);
+            color: var(--text-color);
+            border: none;
+            border-radius: 30px;
+            height: 46px;
+            padding: 0 32px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        
+        #apply-order-btn:hover {
+            background-color: var(--accent-hover-color);
+            transform: scale(1.02);
+        }
+        
+        .conflicts-info {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .item-value-display {
+            font-size: 12px;
+            background-color: #333;
+            padding: 3px 6px;
+            border-radius: 3px;
+            margin-left: 5px;
+            display: inline-block;
+        }
+        
+        .item-value-display[data-type="count"] {
+            color: #ffcc66;
+        }
+        
+        .item-value-display[data-type="value"] {
+            color: #66ccff;
+        }
+        
+        .conflict-preview {
+            display: flex;
+            gap: 15px;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        
+        .conflict-item-name {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="titlebar">
+        <div id="window-title">IPM Tool - Resolve Mod Conflicts</div>
+        <div id="window-controls">
+            <button id="minimize-btn">&#8211;</button>
+            <button id="maximize-btn">&#9744;</button>
+            <button id="close-btn">&#10005;</button>
+        </div>
+    </div>
+
+    <div id="conflict-container">
+        <div class="instructions">
+            <h3>Mod Conflict Resolution</h3>
+            <p>Mods that modify the same items with different values have been detected. Set the priority order by dragging the mods or using the arrow buttons.</p>
+            <p class="priority-info">⚠️ Mods at the top will have higher priority. The first mod in the list will determine the final values for conflicting items.</p>
+        </div>
+        
+        <div id="conflicts-list">
+            <!-- Conflict groups will be added here dynamically -->
+        </div>
+    </div>
+
+    <div id="action-buttons">
+        <button id="cancel-btn">Cancel</button>
+        <button id="apply-order-btn">Apply Order and Combine</button>
+    </div>
+
+    <script src="./conflict-dialog.js"></script>
+</body>
+</html>
