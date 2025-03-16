@@ -179,62 +179,17 @@ async function extractRelevantXmls(pakFiles, modOrderData, onProcessingFile) {
         }
 
         try {
-            // Abrir y procesar el contenido del archivo .pak
-            await new Promise((resolve, reject) => {
-                yauzl.open(pakFile, { lazyEntries: true }, (err, zip) => {
-                    if (err) return reject(err);
-
-                    zip.on('entry', (entry) => {
-                        // Filtrar solo los archivos XML de InventoryPreset
-                        if (entry.fileName.startsWith(config.FILES.XML_SEARCH_PATH) &&
-                            entry.fileName.includes(config.FILES.XML_FILE_PATTERN) &&
-                            entry.fileName.endsWith(config.FILES.XML_EXTENSION)) {
-
-                            zip.openReadStream(entry, async (err, readStream) => {
-                                if (err) return;
-                                if (onProcessingFile) onProcessingFile(`${modId} - ${entry.fileName}`);
-
-                                let xmlContent = '';
-                                readStream.on('data', (chunk) => xmlContent += chunk);
-                                readStream.on('end', () => {
-                                    // Calcular la prioridad del mod según su posición en mod_order.txt
-                                    // Mayor número = Mayor prioridad
-                                    const modIndex = modOrder.indexOf(modId);
-                                    const priority = modIndex === -1 ? -1 : modOrder.length - modIndex;
-                                    
-                                    // Actualizar la prioridad en los detalles del mod
-                                    if (modDetails.has(modId)) {
-                                        modDetails.get(modId).priority = priority;
-                                    }
-                                    
-                                    allXmls.push({
-                                        content: xmlContent,
-                                        modId: modId,
-                                        priority: priority,
-                                        fileName: entry.fileName
-                                    });
-                                    
-                                    // Extraer información de los items para detectar conflictos
-                                    try {
-                                        extractItemValues(xmlContent, modId, modDetails, conflictItemValues);
-                                    } catch (e) {
-                                        console.error(`Error extracting item values from ${entry.fileName}:`, e);
-                                    }
-                                    
-                                    zip.readEntry();
-                                });
-                            });
-                        } else {
-                            zip.readEntry();
-                        }
-                    });
-
-                    zip.on('end', () => resolve());
-                    zip.readEntry();
-                });
-            });
+            // Implementar timeout para evitar bloqueos
+            await Promise.race([
+                processPakFile(pakFile, modId, modOrder, modDetails, allXmls, conflictItemValues, onProcessingFile),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error(`Timeout processing ${pakFile}`)), 60000) // 60 segundos de timeout
+                )
+            ]);
         } catch (error) {
-            console.error(`Error processing ${pakFile}:`, error.message);
+            console.error(`Error processing ${pakFile}: ${error.message}`);
+            // Notificar el error y continuar con el siguiente archivo
+            if (onProcessingFile) onProcessingFile(`Error en ${modId || 'mod desconocido'} - ${pakFile}: ${error.message}`);
         }
     }
 
@@ -253,6 +208,119 @@ async function extractRelevantXmls(pakFiles, modOrderData, onProcessingFile) {
         conflicts: conflicts,
         needsManualOrder: !modOrderExists && conflicts.length > 0
     };
+}
+
+/**
+ * Procesa un archivo .pak individuamente con manejo mejorado de errores
+ * @param {string} pakFile - Ruta al archivo .pak
+ * @param {string} modId - ID del mod
+ * @param {Array} modOrder - Orden de prioridad de los mods
+ * @param {Map} modDetails - Detalles de los mods
+ * @param {Array} allXmls - Lista de XMLs procesados
+ * @param {Map} conflictItemValues - Valores de items para detectar conflictos
+ * @param {Function} onProcessingFile - Callback para notificar cada archivo procesado
+ * @returns {Promise} - Promesa que se resuelve cuando se completa el procesamiento
+ */
+async function processPakFile(pakFile, modId, modOrder, modDetails, allXmls, conflictItemValues, onProcessingFile) {
+    return new Promise((resolve, reject) => {
+        yauzl.open(pakFile, { lazyEntries: true }, (err, zip) => {
+            if (err) return reject(err);
+            
+            let entryCount = 0;
+            const maxEntries = 15000; // Límite de seguridad para evitar bucles infinitos
+            
+            zip.on('entry', (entry) => {
+                entryCount++;
+                if (entryCount > maxEntries) {
+                    zip.close();
+                    return reject(new Error(`Demasiadas entradas en ${pakFile}, posible archivo corrupto`));
+                }
+                
+                try {
+                    // Verificar de manera segura si es un archivo XML relevante
+                    if (entry.fileName && 
+                        entry.fileName.startsWith(config.FILES.XML_SEARCH_PATH) &&
+                        entry.fileName.includes(config.FILES.XML_FILE_PATTERN) &&
+                        entry.fileName.endsWith(config.FILES.XML_EXTENSION)) {
+
+                        zip.openReadStream(entry, (err, readStream) => {
+                            if (err) {
+                                console.error(`No se puede abrir la entrada ${entry.fileName}: ${err.message}`);
+                                zip.readEntry();
+                                return;
+                            }
+                            
+                            if (onProcessingFile) onProcessingFile(`${modId || 'mod desconocido'} - ${entry.fileName}`);
+                            
+                            let xmlContent = '';
+                            
+                            readStream.on('data', (chunk) => {
+                                try {
+                                    xmlContent += chunk.toString('utf8');
+                                } catch (e) {
+                                    console.error(`Error leyendo datos de ${entry.fileName}: ${e.message}`);
+                                }
+                            });
+                            
+                            readStream.on('end', () => {
+                                try {
+                                    if (xmlContent) {
+                                        // Calcular la prioridad del mod según su posición en mod_order.txt
+                                        const modIndex = modOrder.indexOf(modId);
+                                        const priority = modIndex === -1 ? -1 : modOrder.length - modIndex;
+                                        
+                                        // Actualizar la prioridad en los detalles del mod
+                                        if (modDetails.has(modId)) {
+                                            modDetails.get(modId).priority = priority;
+                                        }
+                                        
+                                        allXmls.push({
+                                            content: xmlContent,
+                                            modId: modId,
+                                            priority: priority,
+                                            fileName: entry.fileName
+                                        });
+                                        
+                                        // Extraer información de los items para detectar conflictos
+                                        try {
+                                            extractItemValues(xmlContent, modId, modDetails, conflictItemValues);
+                                        } catch (e) {
+                                            console.error(`Error extracting item values from ${entry.fileName}: ${e.message}`);
+                                        }
+                                    }
+                                } catch (processError) {
+                                    console.error(`Error procesando contenido de ${entry.fileName}: ${processError.message}`);
+                                }
+                                
+                                zip.readEntry();
+                            });
+                            
+                            readStream.on('error', (streamErr) => {
+                                console.error(`Error en stream para ${entry.fileName}: ${streamErr.message}`);
+                                zip.readEntry();
+                            });
+                        });
+                    } else {
+                        // No es un archivo relevante, pasar al siguiente
+                        zip.readEntry();
+                    }
+                } catch (entryError) {
+                    console.error(`Error procesando entrada en ${pakFile}: ${entryError.message}`);
+                    zip.readEntry(); // Continuar con la siguiente entrada
+                }
+            });
+
+            zip.on('end', () => {
+                resolve();
+            });
+            
+            zip.on('error', (zipErr) => {
+                reject(zipErr);
+            });
+            
+            zip.readEntry(); // Iniciar la lectura
+        });
+    });
 }
 
 module.exports = {
