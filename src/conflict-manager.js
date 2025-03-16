@@ -163,7 +163,7 @@ function applyManualModOrder(xmlFiles, manualModOrder) {
 }
 
 /**
- * Fusiona items de presets, respetando la prioridad de los mods
+ * Fusiona items de presets, respetando la prioridad de los mods y manteniendo todos los items únicos
  * @param {Array} presetObjs - Lista de objetos preset con sus prioridades
  * @returns {Array} - Lista de items fusionados
  */
@@ -171,15 +171,16 @@ function mergePresetItems(presetObjs) {
     // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
     const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
     
-    // Tomamos el preset base del mod con mayor prioridad
-    const basePreset = sortedPresets[0];
-    
     // Creamos un mapa para almacenar todos los PresetItems por su nombre
     const itemMap = new Map();
     
     // Procesamos todos los presets en orden de prioridad (de mayor a menor)
     for (const presetObj of sortedPresets) {
-        const presetItems = presetObj.preset.PresetItem || [];
+        // Extraemos el preset actual
+        const preset = presetObj.preset;
+        
+        // Obtenemos todos los items del preset
+        const presetItems = preset.PresetItem || [];
         const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
         
         // Procesamos cada PresetItem
@@ -187,8 +188,9 @@ function mergePresetItems(presetObjs) {
             const itemName = item["@_Name"];
             if (!itemName) continue;
             
-            // Si este item no existe en el mapa o viene de un mod con mayor prioridad,
-            // lo añadimos/reemplazamos en el mapa
+            // Si este item no existe ya en el mapa, lo añadimos
+            // Esto preserva los items del mod con mayor prioridad y añade items únicos
+            // de mods con menor prioridad
             if (!itemMap.has(itemName)) {
                 itemMap.set(itemName, item);
             }

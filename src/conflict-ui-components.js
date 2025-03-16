@@ -7,6 +7,12 @@
  * @returns {HTMLElement} - Elemento DOM que representa el item
  */
 function createConflictItemElement(item) {
+    // Verificar que el item tenga datos válidos
+    if (!item || !item.name) {
+        console.error('Item inválido:', item);
+        return document.createElement('div');
+    }
+    
     const itemDiv = document.createElement('div');
     itemDiv.className = 'conflict-item';
     
@@ -25,7 +31,7 @@ function createConflictItemElement(item) {
     }
     
     // Mostrar los valores en conflicto
-    if (item.values.length >= 2) {
+    if (item.values && item.values.length >= 2) {
         const valuesContainer = document.createElement('div');
         valuesContainer.className = 'conflict-item-values';
         
@@ -45,7 +51,7 @@ function createConflictItemElement(item) {
         // Columnas para cada mod
         item.values.forEach(value => {
             const thMod = document.createElement('th');
-            thMod.textContent = value.modId;
+            thMod.textContent = value.modId || "Desconocido";
             headerRow.appendChild(thMod);
         });
         
@@ -125,7 +131,7 @@ function createConflictItemElement(item) {
 function createModListItem(modId, modDetails, isFirst, moveItemCallback) {
     const li = document.createElement('li');
     li.className = 'mod-item';
-    li.dataset.modId = modId;
+    li.dataset.modId = modId || '';
     li.draggable = true;
     
     const modInfoDiv = document.createElement('div');
@@ -133,7 +139,7 @@ function createModListItem(modId, modDetails, isFirst, moveItemCallback) {
     
     const modNameDiv = document.createElement('div');
     modNameDiv.className = 'mod-name';
-    modNameDiv.textContent = modId;
+    modNameDiv.textContent = modId || 'Mod desconocido';
     modInfoDiv.appendChild(modNameDiv);
     
     if (modDetails) {
@@ -160,14 +166,18 @@ function createModListItem(modId, modDetails, isFirst, moveItemCallback) {
     moveUpBtn.className = 'move-up';
     moveUpBtn.innerHTML = '&#9650;';
     moveUpBtn.title = 'Mover hacia arriba (aumentar prioridad)';
-    moveUpBtn.addEventListener('click', () => moveItemCallback(li, 'up'));
+    moveUpBtn.addEventListener('click', () => {
+        if (moveItemCallback) moveItemCallback(li, 'up');
+    });
     controlsDiv.appendChild(moveUpBtn);
     
     const moveDownBtn = document.createElement('button');
     moveDownBtn.className = 'move-down';
     moveDownBtn.innerHTML = '&#9660;';
     moveDownBtn.title = 'Mover hacia abajo (disminuir prioridad)';
-    moveDownBtn.addEventListener('click', () => moveItemCallback(li, 'down'));
+    moveDownBtn.addEventListener('click', () => {
+        if (moveItemCallback) moveItemCallback(li, 'down');
+    });
     controlsDiv.appendChild(moveDownBtn);
     
     li.appendChild(controlsDiv);
@@ -194,6 +204,8 @@ function createModListItem(modId, modDetails, isFirst, moveItemCallback) {
  * @param {HTMLElement} list - Lista de elementos
  */
 function updatePriorityIndicators(list) {
+    if (!list) return;
+    
     // Eliminar todos los indicadores de prioridad
     list.querySelectorAll('.priority-badge').forEach(badge => badge.remove());
     
@@ -201,18 +213,19 @@ function updatePriorityIndicators(list) {
     const firstItem = list.querySelector('.mod-item');
     if (firstItem) {
         const controlsDiv = firstItem.querySelector('.mod-controls');
-        
-        const priorityDiv = document.createElement('div');
-        priorityDiv.className = 'priority-badge';
-        priorityDiv.textContent = '1º';
-        priorityDiv.style.backgroundColor = 'var(--accent-color)';
-        priorityDiv.style.color = 'white';
-        priorityDiv.style.padding = '2px 6px';
-        priorityDiv.style.borderRadius = '4px';
-        priorityDiv.style.fontSize = '12px';
-        priorityDiv.style.marginRight = '8px';
-        
-        controlsDiv.prepend(priorityDiv);
+        if (controlsDiv) {
+            const priorityDiv = document.createElement('div');
+            priorityDiv.className = 'priority-badge';
+            priorityDiv.textContent = '1º';
+            priorityDiv.style.backgroundColor = 'var(--accent-color)';
+            priorityDiv.style.color = 'white';
+            priorityDiv.style.padding = '2px 6px';
+            priorityDiv.style.borderRadius = '4px';
+            priorityDiv.style.fontSize = '12px';
+            priorityDiv.style.marginRight = '8px';
+            
+            controlsDiv.prepend(priorityDiv);
+        }
     }
 }
 
@@ -223,6 +236,8 @@ function updatePriorityIndicators(list) {
  * @returns {HTMLElement|null} - Elemento después del cual insertar
  */
 function getDragAfterElement(container, y) {
+    if (!container) return null;
+    
     const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
     
     return draggableElements.reduce((closest, child) => {

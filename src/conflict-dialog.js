@@ -11,6 +11,7 @@ const {
 let conflicts = [];
 let modDetails = [];
 let selectedOrder = [];
+let initialDataReceived = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initWindowControls();
@@ -18,13 +19,43 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Recibir datos de conflictos desde el proceso principal
     ipcRenderer.on('conflict-data', (event, data) => {
-        conflicts = data.conflicts;
-        modDetails = data.modDetails;
+        conflicts = data.conflicts || [];
+        modDetails = data.modDetails || [];
+        initialDataReceived = true;
         
-        // Generar la interfaz de usuario para los conflictos
-        renderConflicts();
+        // Asegurar que los datos sean válidos antes de renderizar
+        if (conflicts.length > 0) {
+            // Generar la interfaz de usuario para los conflictos
+            renderConflicts();
+        } else {
+            // Si no hay conflictos, mostrar un mensaje
+            console.error('No se recibieron datos de conflictos válidos');
+            showNoConflictsMessage();
+        }
     });
+    
+    // Solicitar explícitamente los datos en caso de que se hayan enviado antes de estar listo
+    setTimeout(() => {
+        if (!initialDataReceived) {
+            ipcRenderer.send('request-conflict-data');
+        }
+    }, 500);
 });
+
+/**
+ * Muestra un mensaje cuando no hay conflictos para mostrar
+ */
+function showNoConflictsMessage() {
+    const conflictsContainer = document.getElementById('conflicts-list');
+    if (conflictsContainer) {
+        conflictsContainer.innerHTML = `
+            <div class="conflict-group" style="text-align: center; padding: 40px;">
+                <h3>No se encontraron conflictos</h3>
+                <p>No hay conflictos para resolver o los datos aún no se han cargado. Intenta cerrar y volver a abrir esta ventana.</p>
+            </div>
+        `;
+    }
+}
 
 /**
  * Inicializa los controles de la ventana
@@ -73,13 +104,30 @@ function initActionButtons() {
  */
 function renderConflicts() {
     const conflictsContainer = document.getElementById('conflicts-list');
+    if (!conflictsContainer) {
+        console.error('No se encontró el contenedor de conflictos');
+        return;
+    }
+    
     conflictsContainer.innerHTML = '';
+    
+    // Verificar si hay conflictos para mostrar
+    if (!conflicts || conflicts.length === 0) {
+        showNoConflictsMessage();
+        return;
+    }
     
     // Crear un mapa para agrupar conflictos por mods involucrados
     const conflictsByMods = new Map();
     
     // Agrupar conflictos por los mods involucrados
     groupConflictsByMods(conflictsByMods);
+    
+    // Verificar que se hayan agrupado los conflictos
+    if (conflictsByMods.size === 0) {
+        showNoConflictsMessage();
+        return;
+    }
     
     // Mostrar cada grupo de conflictos
     let conflictGroupIndex = 0;
@@ -97,6 +145,12 @@ function renderConflicts() {
  */
 function groupConflictsByMods(conflictsByMods) {
     conflicts.forEach(conflict => {
+        // Verificar que el conflicto tenga datos válidos
+        if (!conflict || !conflict.mods || conflict.mods.length === 0) {
+            console.error('Conflicto inválido:', conflict);
+            return;
+        }
+        
         // Crear una clave única para este conjunto de mods en conflicto
         const modsKey = conflict.mods.map(m => m.modId).sort().join('|');
         

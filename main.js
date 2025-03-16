@@ -27,6 +27,13 @@ ipcMain.on('conflict-resolution-cancelled', () => {
     windowManager.cancelConflictResolution();
 });
 
+// Nuevo evento para manejar solicitudes explícitas de datos
+ipcMain.on('request-conflict-data', (event) => {
+    if (windowManager.conflictWindow && windowManager.lastConflictData) {
+        windowManager.conflictWindow.webContents.send('conflict-data', windowManager.lastConflictData);
+    }
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {

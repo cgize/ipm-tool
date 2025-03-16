@@ -1,3 +1,6 @@
+// renderer.js
+// Archivo principal de la aplicación de interfaz de usuario
+
 const { searchAndMerge } = require('./mergeprocessor.js');
 const { dialog } = require('@electron/remote');
 const path = require('path');

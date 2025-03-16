@@ -1,4 +1,6 @@
 // fileUtils.js
+// Módulo para buscar archivos .pak y extraer información de mods
+
 const fs = require('fs').promises;
 const path = require('path');
 const yauzl = require('yauzl');

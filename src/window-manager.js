@@ -13,6 +13,7 @@ class WindowManager {
         this.mainWindow = null;
         this.conflictWindow = null;
         this.pendingResolveCallback = null;
+        this.lastConflictData = null;
     }
 
     /**
@@ -37,7 +38,7 @@ class WindowManager {
         remoteMain.enable(this.mainWindow.webContents);
         
         // Cargar el HTML desde la ruta correcta
-        this.mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+        this.mainWindow.loadFile(path.join(__dirname, 'index.html'));
         
         return this.mainWindow;
     }
@@ -49,6 +50,12 @@ class WindowManager {
      * @returns {Promise} - Promesa que se resolverá con la decisión del usuario
      */
     createConflictWindow(conflicts, modDetails) {
+        // Almacenar los datos de conflicto para posibles solicitudes futuras
+        this.lastConflictData = {
+            conflicts: conflicts,
+            modDetails: modDetails
+        };
+        
         this.conflictWindow = new BrowserWindow({
             parent: this.mainWindow,
             modal: true,
@@ -65,13 +72,16 @@ class WindowManager {
         });
         
         remoteMain.enable(this.conflictWindow.webContents);
-        this.conflictWindow.loadFile(path.join(__dirname, 'src', 'conflict-dialog.html'));
+        this.conflictWindow.loadFile(path.join(__dirname, 'conflict-dialog.html'));
         
+        // Asegurarse de que la ventana esté completamente cargada antes de enviar los datos
         this.conflictWindow.once('ready-to-show', () => {
-            this.conflictWindow.webContents.send('conflict-data', {
-                conflicts: conflicts,
-                modDetails: modDetails
-            });
+            // Pequeño retraso para asegurar que los manejadores de eventos estén registrados
+            setTimeout(() => {
+                if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+                    this.conflictWindow.webContents.send('conflict-data', this.lastConflictData);
+                }
+            }, 100);
         });
         
         return new Promise((resolve) => {

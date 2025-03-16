@@ -1,3 +1,6 @@
+// mergeprocessor.js
+// Módulo para combinar y fusionar XMLs de mods en conflicto
+
 const fs = require('fs').promises;
 const path = require('path');
 const yauzl = require('yauzl');
@@ -6,6 +9,31 @@ const AdmZip = require('adm-zip');
 const Logger = require('./logger');
 const { findPakFiles, getModOrder, extractModIdFromPak, extractRelevantXmls } = require('./fileUtils');
 const { applyManualModOrder, mergePresetItems } = require('./conflict-manager');
+
+/**
+ * Combina los atributos de los presets, dando prioridad al preset con mayor prioridad
+ * @param {Array} presets - Lista de presets con metadatos de prioridad
+ * @returns {Object} - Objeto con los atributos combinados
+ */
+function combinePresetAttributes(presets) {
+    // Ordenar presets por prioridad (el número más bajo indica mayor prioridad)
+    const sortedPresets = [...presets].sort((a, b) => a.priority - b.priority);
+    
+    // Extraer el preset con mayor prioridad
+    const highestPriorityPreset = sortedPresets[0].preset;
+    
+    // Crear un objeto con todos los atributos del preset con mayor prioridad
+    const combinedAttributes = {};
+    
+    // Copiar todos los atributos que empiezan con "@_"
+    for (const key in highestPriorityPreset) {
+        if (key.startsWith("@_")) {
+            combinedAttributes[key] = highestPriorityPreset[key];
+        }
+    }
+    
+    return combinedAttributes;
+}
 
 // Función para combinar XMLs
 async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrder = null) {
@@ -66,12 +94,17 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
             const winnerMod = sortedPresets[0].modId;
             console.info(`CONFLICT: ${presetName} - Mods: ${presets.map(p => p.modId).join(', ')}. Winner: ${winnerMod} (Priority: ${sortedPresets[0].priority})`);
             
-            // Tomamos la estructura base del mod con mayor prioridad
-            selectedPreset = JSON.parse(JSON.stringify(sortedPresets[0].preset));
+            // Combinar los atributos del preset
+            const combinedAttributes = combinePresetAttributes(presets);
             
-            // Fusionamos los PresetItems usando la función de conflict-manager
+            // Fusionar los PresetItems usando la función de conflict-manager
             const mergedItems = mergePresetItems(presets);
-            selectedPreset.PresetItem = mergedItems;
+            
+            // Crear el preset combinado
+            selectedPreset = {
+                ...combinedAttributes,
+                PresetItem: mergedItems
+            };
         } else {
             // Si no hay conflicto, tomamos el preset tal cual
             selectedPreset = JSON.parse(JSON.stringify(presets[0].preset));
