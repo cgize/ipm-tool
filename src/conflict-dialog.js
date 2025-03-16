@@ -3,6 +3,9 @@ const { ipcRenderer } = require('electron');
 const remote = require('@electron/remote');
 const { 
     createConflictItemElement, 
+    createCompactConflictItem,
+    createGroupedConflictItems,
+    createConflictGroupElement,
     createModListItem, 
     updatePriorityIndicators, 
     getDragAfterElement 
@@ -174,251 +177,44 @@ function groupConflictsByMods(conflictsByMods) {
             }))
         });
     });
-}
 
-/**
- * Crea un elemento para un grupo de conflictos
- * @param {Object} group - Grupo de conflictos
- * @param {number} groupIndex - Índice del grupo
- * @returns {HTMLElement} - Elemento DOM que representa el grupo
- */
-function createConflictGroupElement(group, groupIndex) {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'conflict-group';
-    
-    // Título del grupo
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'conflict-header';
-    headerDiv.textContent = `Grupo de Conflicto ${groupIndex}: ${group.mods.length} Mods`;
-    groupDiv.appendChild(headerDiv);
-    
-    // Descripción
-    const descDiv = document.createElement('div');
-    descDiv.className = 'conflict-description';
-    descDiv.textContent = `Estos mods modifican ${group.items.length} items con valores diferentes. Arrastra para establecer el orden de prioridad.`;
-    groupDiv.appendChild(descDiv);
-    
-    // Añadir la vista previa de items
-    const previewDiv = createItemsPreview(group.items);
-    groupDiv.appendChild(previewDiv);
-    
-    // Lista de mods para ordenar
-    const modListUl = createModsOrderList(group.mods, groupIndex);
-    groupDiv.appendChild(modListUl);
-    
-    // Habilitar drag & drop para este grupo
-    enableDragAndDrop(modListUl);
-    
-    return groupDiv;
-}
-
-/**
- * Crea la vista previa de los items en conflicto
- * @param {Array} items - Lista de items en conflicto
- * @returns {HTMLElement} - Elemento DOM con la vista previa
- */
-function createItemsPreview(items) {
-    const previewDiv = document.createElement('div');
-    previewDiv.className = 'conflict-preview';
-    
-    // Inicialmente mostrar solo los primeros 3 items
-    const itemsToShow = 3;
-    const hiddenItems = items.slice(itemsToShow);
-    const visibleItems = items.slice(0, itemsToShow);
-    
-    // Variable para rastrear si los items adicionales están visibles
-    let additionalItemsVisible = false;
-    
-    // Crear un contenedor para los ítems visibles con layout horizontal
-    const visibleItemsRow = document.createElement('div');
-    visibleItemsRow.className = 'items-row';
-    
-    // Mostrar los primeros items horizontalmente
-    visibleItems.forEach((item, index) => {
-        const itemDiv = createConflictItemElement(item);
-        
-        // Agregar el ítem al contenedor horizontal
-        visibleItemsRow.appendChild(itemDiv);
-        
-        // Agregar separador vertical después de cada item excepto el último
-        if (index < visibleItems.length - 1) {
-            const separator = document.createElement('div');
-            separator.className = 'item-separator-vertical';
-            visibleItemsRow.appendChild(separator);
-        }
-    });
-    
-    previewDiv.appendChild(visibleItemsRow);
-    
-    // Crear un contenedor para los items adicionales (inicialmente oculto)
-    let hiddenItemsRows = [];
-    
-    // Procesamos los items ocultos en filas de 3 para mantener consistencia visual
-    for (let i = 0; i < hiddenItems.length; i += itemsToShow) {
-        const rowItems = hiddenItems.slice(i, i + itemsToShow);
-        const hiddenItemsRow = document.createElement('div');
-        hiddenItemsRow.className = 'items-row';
-        hiddenItemsRow.style.display = 'none'; // Inicialmente oculto
-        
-        rowItems.forEach((item, index) => {
-            const itemDiv = createConflictItemElement(item);
-            
-            hiddenItemsRow.appendChild(itemDiv);
-            
-            // Agregar separador vertical después de cada item excepto el último
-            if (index < rowItems.length - 1) {
-                const separator = document.createElement('div');
-                separator.className = 'item-separator-vertical';
-                hiddenItemsRow.appendChild(separator);
-            }
-        });
-        
-        previewDiv.appendChild(hiddenItemsRow);
-        hiddenItemsRows.push(hiddenItemsRow);
-    }
-    
-    // Agregar botón "mostrar más" si hay items adicionales
-    if (hiddenItems.length > 0) {
-        const showMoreBtn = document.createElement('button');
-        showMoreBtn.className = 'show-more-btn';
-        showMoreBtn.textContent = `Mostrar ${hiddenItems.length} items más...`;
-        showMoreBtn.addEventListener('click', function() {
-            additionalItemsVisible = !additionalItemsVisible;
-            
-            // Mostrar u ocultar todas las filas de items adicionales
-            hiddenItemsRows.forEach(row => {
-                row.style.display = additionalItemsVisible ? 'flex' : 'none';
+    // Pre-ordenar los items dentro de cada grupo por valores más altos primero
+    for (const [key, group] of conflictsByMods.entries()) {
+        if (group.items && group.items.length > 0) {
+            group.items.sort((a, b) => {
+                // Intentar ordenar por el valor más alto de Count, Amount o Value
+                const aHighestValue = getHighestValue(a);
+                const bHighestValue = getHighestValue(b);
+                return bHighestValue - aHighestValue;
             });
-            
-            this.textContent = additionalItemsVisible 
-                ? 'Ocultar items adicionales' 
-                : `Mostrar ${hiddenItems.length} items más...`;
-        });
-        previewDiv.appendChild(showMoreBtn);
-    }
-    
-    return previewDiv;
-}
-
-/**
- * Crea la lista de mods para ordenarlos
- * @param {Array} mods - Lista de IDs de mods
- * @param {number} groupIndex - Índice del grupo de conflictos
- * @returns {HTMLElement} - Lista ordenable de mods
- */
-function createModsOrderList(mods, groupIndex) {
-    const modListUl = document.createElement('ul');
-    modListUl.className = 'mod-priority-list';
-    modListUl.id = `mod-list-${groupIndex}`;
-    
-    // Ordenar los mods: los que están en modDetails primero, luego el resto
-    const modsToDisplay = [...mods].sort((a, b) => {
-        const modA = modDetails.find(m => m.id === a);
-        const modB = modDetails.find(m => m.id === b);
-        
-        // Si ambos tienen detalles, ordenar por prioridad (si existe)
-        if (modA && modB) {
-            // Mayor prioridad primero (números mayores)
-            return (modB.priority || -1) - (modA.priority || -1);
         }
-        
-        // Si solo uno tiene detalles, ponerlo primero
-        if (modA) return -1;
-        if (modB) return 1;
-        
-        // Orden alfabético si no hay criterio mejor
-        return a.localeCompare(b);
-    });
-    
-    // Crear los elementos de la lista para cada mod
-    modsToDisplay.forEach((modId, index) => {
-        const modDetailInfo = getModDetails(modId);
-        const modItemLi = createModListItem(modId, modDetailInfo, index === 0, moveItem);
-        modListUl.appendChild(modItemLi);
-    });
-    
-    return modListUl;
-}
-
-/**
- * Mueve un elemento de la lista hacia arriba o hacia abajo
- * @param {HTMLElement} item - Elemento a mover
- * @param {string} direction - Dirección ('up' o 'down')
- */
-function moveItem(item, direction) {
-    const list = item.parentNode;
-    if (direction === 'up' && item.previousElementSibling) {
-        list.insertBefore(item, item.previousElementSibling);
-    } else if (direction === 'down' && item.nextElementSibling) {
-        list.insertBefore(item.nextElementSibling, item);
     }
-    updatePriorityIndicators(list);
 }
 
 /**
- * Habilita el arrastrar y soltar para una lista
- * @param {HTMLElement} listElement - Lista de elementos arrastables
+ * Obtiene el valor más alto (count, amount, value) de un item en conflicto
+ * @param {Object} item - El item en conflicto
+ * @returns {number} - El valor más alto encontrado
  */
-function enableDragAndDrop(listElement) {
-    let draggedItem = null;
+function getHighestValue(item) {
+    if (!item || !item.values || item.values.length === 0) return 0;
     
-    // Eventos para los elementos de la lista
-    const items = listElement.querySelectorAll('.mod-item');
-    items.forEach(item => {
-        // Cuando comienza el arrastre
-        item.addEventListener('dragstart', function(e) {
-            draggedItem = this;
-            setTimeout(() => this.classList.add('dragging'), 0);
-        });
-        
-        // Cuando termina el arrastre
-        item.addEventListener('dragend', function() {
-            this.classList.remove('dragging');
-            draggedItem = null;
-            updatePriorityIndicators(listElement);
-        });
-        
-        // Cuando un elemento arrastrado entra en otro elemento
-        item.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
-        
-        // Cuando se suelta un elemento sobre otro
-        item.addEventListener('drop', function(e) {
-            e.preventDefault();
-            if (draggedItem && this !== draggedItem) {
-                // Determinar si insertar antes o después según la posición
-                const rect = this.getBoundingClientRect();
-                const midpoint = (rect.top + rect.bottom) / 2;
-                
-                if (e.clientY < midpoint) {
-                    listElement.insertBefore(draggedItem, this);
-                } else {
-                    listElement.insertBefore(draggedItem, this.nextSibling);
-                }
-            }
-        });
-    });
+    let highestCount = 0;
+    let highestAmount = 0;
+    let highestValue = 0;
     
-    // Eventos para el contenedor de la lista
-    listElement.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        const afterElement = getDragAfterElement(this, e.clientY);
-        if (draggedItem) {
-            if (afterElement) {
-                this.insertBefore(draggedItem, afterElement);
-            } else {
-                this.appendChild(draggedItem);
-            }
+    item.values.forEach(value => {
+        if (value.count !== undefined) {
+            highestCount = Math.max(highestCount, parseFloat(value.count) || 0);
+        }
+        if (value.amount !== undefined) {
+            highestAmount = Math.max(highestAmount, parseFloat(value.amount) || 0);
+        }
+        if (value.value !== undefined) {
+            highestValue = Math.max(highestValue, parseFloat(value.value) || 0);
         }
     });
-}
-
-/**
- * Obtiene los detalles de un mod por su ID
- * @param {string} modId - ID del mod
- * @returns {Object|null} - Detalles del mod o null si no se encuentra
- */
-function getModDetails(modId) {
-    return modDetails.find(mod => mod.id === modId);
+    
+    // Priorizar el valor más alto encontrado
+    return Math.max(highestCount, highestAmount, highestValue);
 }

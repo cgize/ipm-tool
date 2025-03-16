@@ -181,16 +181,143 @@
     color: #66ccff;
 }
 
-/* Estilos para los ítems en conflicto */
-.items-row {
+/* Estilos para el nuevo formato compacto de conflictos */
+.conflict-preview.compact-view {
     display: flex;
-    justify-content: space-between;
-    align-items: stretch;
-    width: 100%;
-    margin-bottom: 10px;
+    flex-direction: column;
     gap: 10px;
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    margin-bottom: 15px;
 }
 
+.compact-conflict-item {
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border-left: 3px solid var(--accent-color);
+}
+
+.compact-conflict-item .item-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #fff;
+}
+
+.compact-conflict-item .values-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.compact-conflict-item .value-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.1);
+}
+
+.compact-conflict-item .value-item:last-child {
+    border-bottom: none;
+}
+
+.compact-conflict-item .mod-id {
+    font-size: 13px;
+    font-weight: 500;
+    color: #ddd;
+    flex: 1;
+}
+
+.compact-conflict-item .values-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+}
+
+.value-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.value-badge.count {
+    color: #ffcc66;
+    border: 1px solid rgba(255, 204, 102, 0.3);
+}
+
+.value-badge.amount {
+    color: #66ccff;
+    border: 1px solid rgba(102, 204, 255, 0.3);
+}
+
+.value-badge.value {
+    color: #66ff99;
+    border: 1px solid rgba(102, 255, 153, 0.3);
+}
+
+/* Estilos para agrupación por preset */
+.preset-group {
+    margin-bottom: 15px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.preset-header {
+    background-color: rgba(8, 88, 36, 0.3);
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    border-radius: 4px 4px 0 0;
+}
+
+.items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 0 0 4px 4px;
+}
+
+/* Contenedor para items ocultos */
+.hidden-items-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+/* Botón para mostrar más items */
+.show-more-btn {
+    background-color: var(--button-bg-color);
+    color: var(--text-color);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 10px 0;
+    cursor: pointer;
+    font-size: 13px;
+    width: 100%;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+
+.show-more-btn:hover {
+    background-color: var(--button-hover-color);
+}
+
+/* Estilos para los ítems en conflicto (versión antigua) */
 .conflict-item {
     flex: 1;
     min-width: 0;
@@ -219,6 +346,15 @@
     font-size: 13px;
     color: #b0b0b0;
     margin-top: 5px;
+}
+
+.items-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    width: 100%;
+    margin-bottom: 10px;
+    gap: 10px;
 }
 
 .item-separator-vertical {
@@ -250,56 +386,29 @@
     margin: 10px 0;
 }
 
-.show-more-btn {
-    background-color: var(--button-bg-color);
-    color: var(--text-color);
-    border: none;
-    border-radius: 4px;
-    padding: 8px 12px;
-    margin-top: 10px;
-    cursor: pointer;
-    font-size: 13px;
+/* Estilos para listas compactas */
+.compact-values-list {
+    list-style: none;
+    padding: 0;
+    margin: 5px 0 0 0;
+}
+
+.compact-value-item {
+    display: flex;
+    padding: 4px 0;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.1);
+}
+
+.compact-value-item:last-child {
+    border-bottom: none;
+}
+
+.mod-value-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
     width: 100%;
-    text-align: center;
-    transition: background-color 0.2s;
-}
-
-.show-more-btn:hover {
-    background-color: var(--button-hover-color);
-}
-
-/* Estilos para la tabla de valores en conflicto */
-.conflict-values-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 5px;
-    font-size: 12px;
-}
-
-.conflict-values-table th, 
-.conflict-values-table td {
-    padding: 4px 6px;
-    text-align: left;
-    border: 1px solid var(--border-color);
-}
-
-.conflict-values-table th {
-    background-color: rgba(0, 0, 0, 0.3);
-    color: #ffcc66;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
-}
-
-.conflict-values-table td:first-child {
-    font-weight: 500;
-    color: #aaaaaa;
-}
-
-.conflict-values-table td {
-    color: #ffffff;
 }
 
 /* Estilos responsivos */
