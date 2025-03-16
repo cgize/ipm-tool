@@ -1,4 +1,6 @@
 // conflict-dialog.js
+// Modulo principal para el diálogo de resolución de conflictos
+
 const { ipcRenderer } = require('electron');
 const remote = require('@electron/remote');
 const { 

@@ -1,5 +1,5 @@
 // conflict-manager.js
-// Módulo mejorado para manejar la detección y resolución de conflictos entre mods
+// Módulo para manejar la detección y resolución de conflictos entre mods
 
 /**
  * Detecta conflictos entre mods basados en los valores de los items
@@ -61,7 +61,8 @@ function detectModConflicts(conflictItemValues) {
 }
 
 /**
- * Extrae valores de los items de un archivo XML para detectar conflictos
+ * Extrae valores de los items de un archivo XML para detectar conflictos,
+ * centrándose específicamente en el atributo Amount
  * @param {string} xmlContent - Contenido del archivo XML
  * @param {string} modId - ID del mod
  * @param {Map} modDetails - Mapa con detalles de los mods
@@ -97,34 +98,28 @@ function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
                 const itemName = item["@_Name"];
                 if (!itemName) continue;
                 
-                // Extraer valores importantes como cantidad o valor
-                const count = item["@_Count"];
+                // Enfocarse principalmente en el atributo Amount
                 const amount = item["@_Amount"];
-                const value = item["@_Value"];
                 
-                // Almacenar los valores en los detalles del mod
-                if (modDetails.has(modId)) {
+                // Almacenar el valor en los detalles del mod
+                if (modDetails.has(modId) && amount !== undefined) {
                     if (!modDetails.get(modId).presetItems.has(itemName)) {
                         modDetails.get(modId).presetItems.set(itemName, {
-                            count, 
                             amount,
-                            value,
                             parentPreset: presetName
                         });
                     }
                 }
                 
-                // Registrar el item para detectar conflictos
-                if (count !== undefined || amount !== undefined || value !== undefined) {
+                // Registrar el item para detectar conflictos solo si tiene Amount definido
+                if (amount !== undefined) {
                     if (!conflictItemValues.has(itemName)) {
                         conflictItemValues.set(itemName, []);
                     }
                     
                     conflictItemValues.get(itemName).push({
                         modId,
-                        count,
                         amount,
-                        value,
                         parentPreset: presetName
                     });
                 }
