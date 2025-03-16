@@ -71,11 +71,13 @@ function renderConflicts() {
         // Agregar este item al grupo de conflictos
         conflictsByMods.get(modsKey).items.push({
             name: conflict.itemName,
+            parentPreset: conflict.mods[0].parentPreset, // Añadir el nodo padre
             values: conflict.mods.map(m => ({
                 modId: m.modId,
                 count: m.count,
                 amount: m.amount,
-                value: m.value
+                value: m.value,
+                parentPreset: m.parentPreset // Mantener la información del nodo padre por mod
             }))
         });
     });
@@ -104,53 +106,80 @@ function renderConflicts() {
         const previewDiv = document.createElement('div');
         previewDiv.className = 'conflict-preview';
         
-        // Solo mostrar hasta 3 items como ejemplo
-        const previewItems = group.items.slice(0, 3);
+        // Inicialmente mostrar solo los primeros 3 items
+        const itemsToShow = 3;
+        const hiddenItems = group.items.slice(itemsToShow);
+        const visibleItems = group.items.slice(0, itemsToShow);
         
-        previewItems.forEach(item => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'conflict-item';
+        // Variable para rastrear si los items adicionales están visibles
+        let additionalItemsVisible = false;
+        
+        // Crear un contenedor para los ítems visibles con layout horizontal
+        const visibleItemsRow = document.createElement('div');
+        visibleItemsRow.className = 'items-row';
+        
+        // Mostrar los primeros items horizontalmente
+        visibleItems.forEach((item, index) => {
+            const itemDiv = createConflictItemElement(item);
             
-            const itemNameDiv = document.createElement('div');
-            itemNameDiv.className = 'conflict-item-name';
-            itemNameDiv.textContent = item.name;
-            itemDiv.appendChild(itemNameDiv);
+            // Agregar el ítem al contenedor horizontal
+            visibleItemsRow.appendChild(itemDiv);
             
-            // Mostrar un ejemplo de valores en conflicto (primer mod vs segundo mod)
-            if (item.values.length >= 2) {
-                const mod1 = item.values[0];
-                const mod2 = item.values[1];
-                
-                let valueText = '';
-                
-                if (mod1.count !== undefined && mod2.count !== undefined && mod1.count !== mod2.count) {
-                    valueText += `Cantidad (Count): ${mod1.count} vs ${mod2.count} `;
-                }
-                
-                if (mod1.amount !== undefined && mod2.amount !== undefined && mod1.amount !== mod2.amount) {
-                    valueText += `Cantidad (Amount): ${mod1.amount} vs ${mod2.amount} `;
-                }
-                
-                if (mod1.value !== undefined && mod2.value !== undefined && mod1.value !== mod2.value) {
-                    valueText += `Valor: ${mod1.value} vs ${mod2.value}`;
-                }
-                
-                if (valueText) {
-                    const valuesDiv = document.createElement('div');
-                    valuesDiv.className = 'conflict-item-values';
-                    valuesDiv.textContent = valueText;
-                    itemDiv.appendChild(valuesDiv);
-                }
+            // Agregar separador vertical después de cada item excepto el último
+            if (index < visibleItems.length - 1) {
+                const separator = document.createElement('div');
+                separator.className = 'item-separator-vertical';
+                visibleItemsRow.appendChild(separator);
             }
-            
-            previewDiv.appendChild(itemDiv);
         });
         
-        // Agregar texto de "y más" si hay más items
-        if (group.items.length > 3) {
-            const moreDiv = document.createElement('div');
-            moreDiv.textContent = `Y ${group.items.length - 3} items más...`;
-            previewDiv.appendChild(moreDiv);
+        previewDiv.appendChild(visibleItemsRow);
+        
+        // Crear un contenedor para los items adicionales (inicialmente oculto)
+        let hiddenItemsRows = [];
+        
+        // Procesamos los items ocultos en filas de 3 para mantener consistencia visual
+        for (let i = 0; i < hiddenItems.length; i += itemsToShow) {
+            const rowItems = hiddenItems.slice(i, i + itemsToShow);
+            const hiddenItemsRow = document.createElement('div');
+            hiddenItemsRow.className = 'items-row';
+            hiddenItemsRow.style.display = 'none'; // Inicialmente oculto
+            
+            rowItems.forEach((item, index) => {
+                const itemDiv = createConflictItemElement(item);
+                
+                hiddenItemsRow.appendChild(itemDiv);
+                
+                // Agregar separador vertical después de cada item excepto el último
+                if (index < rowItems.length - 1) {
+                    const separator = document.createElement('div');
+                    separator.className = 'item-separator-vertical';
+                    hiddenItemsRow.appendChild(separator);
+                }
+            });
+            
+            previewDiv.appendChild(hiddenItemsRow);
+            hiddenItemsRows.push(hiddenItemsRow);
+        }
+        
+        // Agregar botón "mostrar más" si hay items adicionales
+        if (hiddenItems.length > 0) {
+            const showMoreBtn = document.createElement('button');
+            showMoreBtn.className = 'show-more-btn';
+            showMoreBtn.textContent = `Mostrar ${hiddenItems.length} items más...`;
+            showMoreBtn.addEventListener('click', function() {
+                additionalItemsVisible = !additionalItemsVisible;
+                
+                // Mostrar u ocultar todas las filas de items adicionales
+                hiddenItemsRows.forEach(row => {
+                    row.style.display = additionalItemsVisible ? 'flex' : 'none';
+                });
+                
+                this.textContent = additionalItemsVisible 
+                    ? 'Ocultar items adicionales' 
+                    : `Mostrar ${hiddenItems.length} items más...`;
+            });
+            previewDiv.appendChild(showMoreBtn);
         }
         
         groupDiv.appendChild(previewDiv);
@@ -193,6 +222,115 @@ function renderConflicts() {
         
         conflictsContainer.appendChild(groupDiv);
     }
+}
+
+// Función auxiliar para crear el elemento de visualización de un item en conflicto
+function createConflictItemElement(item) {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'conflict-item';
+    
+    // Mostrar nombre del ítem
+    const itemNameDiv = document.createElement('div');
+    itemNameDiv.className = 'conflict-item-name';
+    itemNameDiv.textContent = item.name;
+    itemDiv.appendChild(itemNameDiv);
+    
+    // Mostrar el nombre del InventoryPreset (nodo padre) si está disponible
+    if (item.parentPreset) {
+        const parentPresetDiv = document.createElement('div');
+        parentPresetDiv.className = 'parent-preset-name';
+        parentPresetDiv.textContent = `Preset: ${item.parentPreset}`;
+        itemDiv.appendChild(parentPresetDiv);
+    }
+    
+    // Mostrar los valores en conflicto
+    if (item.values.length >= 2) {
+        const valuesContainer = document.createElement('div');
+        valuesContainer.className = 'conflict-item-values';
+        
+        // Crear tabla para los valores en conflicto
+        const table = document.createElement('table');
+        table.className = 'conflict-values-table';
+        
+        // Crear encabezado
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        
+        // Columna de tipo de valor
+        const thType = document.createElement('th');
+        thType.textContent = "Tipo";
+        headerRow.appendChild(thType);
+        
+        // Columnas para cada mod
+        item.values.forEach(value => {
+            const thMod = document.createElement('th');
+            thMod.textContent = value.modId;
+            headerRow.appendChild(thMod);
+        });
+        
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        
+        // Crear cuerpo de la tabla
+        const tbody = document.createElement('tbody');
+        
+        // Fila para Count si está presente
+        if (item.values.some(v => v.count !== undefined)) {
+            const countRow = document.createElement('tr');
+            
+            const countTypeCell = document.createElement('td');
+            countTypeCell.textContent = "Count";
+            countRow.appendChild(countTypeCell);
+            
+            item.values.forEach(value => {
+                const countCell = document.createElement('td');
+                countCell.textContent = value.count !== undefined ? value.count : "-";
+                countRow.appendChild(countCell);
+            });
+            
+            tbody.appendChild(countRow);
+        }
+        
+        // Fila para Amount si está presente
+        if (item.values.some(v => v.amount !== undefined)) {
+            const amountRow = document.createElement('tr');
+            
+            const amountTypeCell = document.createElement('td');
+            amountTypeCell.textContent = "Amount";
+            amountRow.appendChild(amountTypeCell);
+            
+            item.values.forEach(value => {
+                const amountCell = document.createElement('td');
+                amountCell.textContent = value.amount !== undefined ? value.amount : "-";
+                amountRow.appendChild(amountCell);
+            });
+            
+            tbody.appendChild(amountRow);
+        }
+        
+        // Fila para Value si está presente
+        if (item.values.some(v => v.value !== undefined)) {
+            const valueRow = document.createElement('tr');
+            
+            const valueTypeCell = document.createElement('td');
+            valueTypeCell.textContent = "Value";
+            valueRow.appendChild(valueTypeCell);
+            
+            item.values.forEach(value => {
+                const valueCell = document.createElement('td');
+                valueCell.textContent = value.value !== undefined ? value.value : "-";
+                valueRow.appendChild(valueCell);
+            });
+            
+            tbody.appendChild(valueRow);
+        }
+        
+        table.appendChild(tbody);
+        valuesContainer.appendChild(table);
+        itemDiv.appendChild(valuesContainer);
+    }
+    
+    return itemDiv;
 }
 
 function createModListItem(modId, modDetails, isFirst) {

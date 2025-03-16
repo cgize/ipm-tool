@@ -76,7 +76,7 @@ async function getModOrder(modsPath) {
 
 /**
  * Extrae el ID del mod a partir de la ruta de un archivo .pak
- * Intenta leer el archivo mod.manifest, si no existe usa el nombre de la carpeta
+ * Para mods de Steam Workshop, usa el nombre del archivo .pak en lugar del nombre de la carpeta
  * @param {string} pakFilePath - Ruta al archivo .pak
  * @returns {Promise<string>} - ID del mod normalizado (en minúsculas y con guiones bajos)
  */
@@ -126,9 +126,11 @@ async function extractModIdFromPak(pakFilePath) {
         }
     }
     
-    // Si es un mod de Steam Workshop, añadir un prefijo para mejor identificación
+    // Si es un mod de Steam Workshop, usar el nombre del archivo .pak en lugar del nombre de la carpeta
     if (isSteamWorkshopMod) {
-        return `steam_${folderName}`.toLowerCase().replace(/\s+/g, '_');
+        // Extraer el nombre del archivo .pak sin la extensión
+        const pakFileName = path.basename(pakFilePath, '.pak');
+        return `steam_${pakFileName}`.toLowerCase().replace(/\s+/g, '_');
     }
     
     return folderName.toLowerCase().replace(/\s+/g, '_');
@@ -181,7 +183,7 @@ async function extractRelevantXmls(pakFiles, modOrderData, onProcessingFile) {
                     zip.on('entry', (entry) => {
                         // Filtrar solo los archivos XML de InventoryPreset
                         if (entry.fileName.startsWith('Libs/Tables/item/') &&
-                            entry.fileName.includes('InventoryPreset__') &&
+                            entry.fileName.includes('InventoryPreset') &&
                             entry.fileName.endsWith('.xml')) {
 
                             zip.openReadStream(entry, async (err, readStream) => {
@@ -293,11 +295,14 @@ function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
                 
                 // Almacenar los valores en los detalles del mod
                 if (modDetails.has(modId)) {
-                    modDetails.get(modId).presetItems.set(itemName, { 
-                        count, 
-                        amount, // Añadido
-                        value 
-                    });
+                    if (!modDetails.get(modId).presetItems.has(itemName)) {
+                        modDetails.get(modId).presetItems.set(itemName, {
+                            count, 
+                            amount,
+                            value,
+                            parentPreset: presetName // Añadir el nombre del preset padre
+                        });
+                    }
                 }
                 
                 // Registrar el item para detectar conflictos
@@ -310,8 +315,9 @@ function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
                     conflictItemValues.get(itemName).push({
                         modId,
                         count,
-                        amount, // Añadido
-                        value
+                        amount,
+                        value,
+                        parentPreset: presetName // Añadir el nombre del preset padre
                     });
                 }
             }
@@ -362,7 +368,8 @@ function detectModConflicts(conflictItemValues) {
                         modId: mv.modId,
                         count: mv.count,
                         amount: mv.amount,
-                        value: mv.value
+                        value: mv.value,
+                        parentPreset: mv.parentPreset // Incluir el nombre del preset padre
                     }))
                 };
                 
