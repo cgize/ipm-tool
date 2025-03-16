@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Solicitar los datos
+    // Solicitar explícitamente los datos en caso de que se hayan enviado antes de estar listo
     setTimeout(() => {
         if (!initialDataReceived) {
             ipcRenderer.send('request-conflict-data');
@@ -179,20 +179,6 @@ function isModInvolvedInInventoryPresetConflict(modId) {
 }
 
 /**
- * Verifica si un mod contiene archivos de InventoryPreset
- * @param {string} modId - ID del mod a verificar
- * @returns {boolean} - True si el mod contiene archivos de InventoryPreset
- */
-function modHasInventoryPresetFiles(modId) {
-    // Buscar en modDetails si hay alguna entrada que contenga InventoryPreset
-    const mod = modDetails.find(m => m.id === modId);
-    if (!mod) return false;
-    
-    // Revisar presetItems - si tiene elementos es porque es un mod de InventoryPreset
-    return mod.presetItems && mod.presetItems.size > 0;
-}
-
-/**
  * Llena la lista de mods para la resolución manual
  */
 function populateModList() {
@@ -215,10 +201,11 @@ function populateModList() {
         });
     }
     
-    // Añadir mods de modDetails que contengan archivos de InventoryPreset
+    // Añadir mods de modDetails que contengan presetItems
+    // Esto reemplaza la función modHasInventoryPresetFiles
     if (modDetails && modDetails.length > 0) {
         modDetails.forEach(mod => {
-            if (mod.id && modHasInventoryPresetFiles(mod.id)) {
+            if (mod.id && mod.presetItems && mod.presetItems.size > 0) {
                 relevantMods.add(mod.id);
             }
         });
