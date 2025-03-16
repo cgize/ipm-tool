@@ -6,6 +6,7 @@ const path = require('path');
 const yauzl = require('yauzl');
 const { XMLParser } = require('fast-xml-parser');
 const { extractItemValues, detectModConflicts } = require('./conflict-manager');
+const config = require('./config');
 
 /**
  * Busca de forma recursiva todos los archivos .pak en el directorio especificado
@@ -22,10 +23,10 @@ async function findPakFiles(modsPath, steamModsPath = null) {
 
             for (const entry of entries) {
                 const fullPath = path.join(dir, entry.name);
-                // Omitir la carpeta z para evitar procesar archivos previamente generados
-                if (entry.isDirectory() && entry.name !== 'zipmtool') {
+                // Omitir la carpeta de salida para evitar procesar archivos previamente generados
+                if (entry.isDirectory() && entry.name !== config.PATHS.OUTPUT_FOLDER) {
                     pakFiles = pakFiles.concat(await searchDir(fullPath));
-                } else if (entry.isFile() && entry.name.endsWith('.pak')) {
+                } else if (entry.isFile() && entry.name.endsWith(config.FILES.PAK_EXTENSION)) {
                     pakFiles.push(fullPath);
                 }
             }
@@ -59,7 +60,7 @@ async function findPakFiles(modsPath, steamModsPath = null) {
  * @returns {Promise<{modOrder: string[], exists: boolean}>} - Lista de IDs de mods en el orden especificado y si existe el archivo
  */
 async function getModOrder(modsPath) {
-    const modOrderPath = path.join(modsPath, 'mod_order.txt');
+    const modOrderPath = path.join(modsPath, config.PATHS.MOD_ORDER_FILE);
     try {
         const content = await fs.readFile(modOrderPath, 'utf8');
         return {
@@ -96,15 +97,15 @@ async function extractModIdFromPak(pakFilePath) {
         const manifestContent = await fs.readFile(manifestPath, 'utf8');
         const parser = new XMLParser({
             ignoreAttributes: false,
-            attributeNamePrefix: "@_"
+            attributeNamePrefix: config.XML.ATTRIBUTE_PREFIX
         });
         const parsedManifest = parser.parse(manifestContent);
 
-        if (parsedManifest?.kcd_mod?.info?.["@_modid"]) {
-            return parsedManifest.kcd_mod.info["@_modid"];
+        if (parsedManifest?.kcd_mod?.info?.[`${config.XML.ATTRIBUTE_PREFIX}modid`]) {
+            return parsedManifest.kcd_mod.info[`${config.XML.ATTRIBUTE_PREFIX}modid`];
         }
-        if (parsedManifest?.kcd_mod?.info?.["@_name"]) {
-            return parsedManifest.kcd_mod.info["@_name"].toLowerCase().replace(/\s+/g, '_');
+        if (parsedManifest?.kcd_mod?.info?.[`${config.XML.ATTRIBUTE_PREFIX}name`]) {
+            return parsedManifest.kcd_mod.info[`${config.XML.ATTRIBUTE_PREFIX}name`].toLowerCase().replace(/\s+/g, '_');
         }
     } catch (error) {
         // Si hay un error al leer el manifiesto y es un mod de Steam Workshop,
@@ -114,7 +115,7 @@ async function extractModIdFromPak(pakFilePath) {
                 // Buscar cualquier archivo XML dentro del directorio que pueda contener información del mod
                 const files = await fs.readdir(modFolder, { withFileTypes: true });
                 for (const file of files) {
-                    if (file.isFile() && file.name.endsWith('.xml')) {
+                    if (file.isFile() && file.name.endsWith(config.FILES.XML_EXTENSION)) {
                         const content = await fs.readFile(path.join(modFolder, file.name), 'utf8');
                         // Buscar patrones comunes de ID de mod en el contenido
                         const modIdMatch = content.match(/modid="([^"]+)"/i) || content.match(/name="([^"]+)"/i);
@@ -132,8 +133,8 @@ async function extractModIdFromPak(pakFilePath) {
     // Si es un mod de Steam Workshop, usar el nombre del archivo .pak en lugar del nombre de la carpeta
     if (isSteamWorkshopMod) {
         // Extraer el nombre del archivo .pak sin la extensión
-        const pakFileName = path.basename(pakFilePath, '.pak');
-        return `steam_${pakFileName}`.toLowerCase().replace(/\s+/g, '_');
+        const pakFileName = path.basename(pakFilePath, config.FILES.PAK_EXTENSION);
+        return `${config.MODS.STEAM_MOD_PREFIX}${pakFileName}`.toLowerCase().replace(/\s+/g, '_');
     }
     
     return folderName.toLowerCase().replace(/\s+/g, '_');
@@ -185,9 +186,9 @@ async function extractRelevantXmls(pakFiles, modOrderData, onProcessingFile) {
 
                     zip.on('entry', (entry) => {
                         // Filtrar solo los archivos XML de InventoryPreset
-                        if (entry.fileName.startsWith('Libs/Tables/item/') &&
-                            entry.fileName.includes('InventoryPreset') &&
-                            entry.fileName.endsWith('.xml')) {
+                        if (entry.fileName.startsWith(config.FILES.XML_SEARCH_PATH) &&
+                            entry.fileName.includes(config.FILES.XML_FILE_PATTERN) &&
+                            entry.fileName.endsWith(config.FILES.XML_EXTENSION)) {
 
                             zip.openReadStream(entry, async (err, readStream) => {
                                 if (err) return;

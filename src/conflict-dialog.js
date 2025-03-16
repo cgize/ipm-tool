@@ -7,8 +7,10 @@ const {
     createModListItem, 
     moveItem, 
     updatePriorityIndicators, 
-    enableDragAndDrop 
-} = require('./conflict-utils');
+    enableDragAndDrop,
+    setModDetails
+} = require('./conflict-components');
+const config = require('./config');
 
 let conflicts = [];
 let modDetails = [];
@@ -42,12 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
         modDetails = data.modDetails || [];
         initialDataReceived = true;
         
+        // Actualizar los detalles de los mods en el módulo conflict-components
+        setModDetails(modDetails);
+        
         // Asegurar que los datos sean válidos antes de renderizar
         if (conflicts.length > 0 || modDetails.length > 0) {
             populateModList();
             
             // Si se ha seleccionado el modo manual, asegurarse de que el panel sea visible
-            if (selectedMethod === 'manual') {
+            if (selectedMethod === config.RESOLUTION_METHODS.MANUAL) {
                 const manualResolutionPanel = document.getElementById('manual-resolution-panel');
                 if (manualResolutionPanel) {
                     manualResolutionPanel.style.display = 'block';
@@ -64,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!initialDataReceived) {
             ipcRenderer.send('request-conflict-data');
         }
-    }, 500);
+    }, config.UI.TIMEOUTS.UI_UPDATE);
 });
 
 /**
@@ -91,7 +96,7 @@ function initResolutionOptions() {
             selectedMethod = radioBtn.value;
             
             // Mostrar u ocultar el panel de resolución manual
-            if (selectedMethod === 'manual') {
+            if (selectedMethod === config.RESOLUTION_METHODS.MANUAL) {
                 manualResolutionPanel.style.display = 'block';
                 
                 // Asegurar que la lista de mods esté poblada
@@ -117,7 +122,7 @@ function initResolutionOptions() {
                 selectedMethod = this.value;
                 
                 // Mostrar u ocultar el panel de resolución manual
-                if (selectedMethod === 'manual') {
+                if (selectedMethod === config.RESOLUTION_METHODS.MANUAL) {
                     manualResolutionPanel.style.display = 'block';
                     
                     // Asegurar que la lista de mods esté poblada
@@ -144,7 +149,7 @@ function initActionButtons() {
     });
 
     document.getElementById('apply-resolution-btn').addEventListener('click', () => {
-        if (selectedMethod === 'manual') {
+        if (selectedMethod === config.RESOLUTION_METHODS.MANUAL) {
             // Recopilar el orden final de los mods
             const allModItems = document.querySelectorAll('.mod-item');
             const manualModOrder = Array.from(allModItems).map(item => item.dataset.modId);
@@ -153,7 +158,7 @@ function initActionButtons() {
             const uniqueOrder = [...new Set(manualModOrder)];
             
             ipcRenderer.send('conflict-resolution-completed', { 
-                method: 'manual',
+                method: config.RESOLUTION_METHODS.MANUAL,
                 manualModOrder: uniqueOrder 
             });
         } else {

@@ -1,5 +1,25 @@
-// conflict-utils.js
-// Utilidades compartidas para el manejo de conflictos UI
+// conflict-components.js
+// Funciones y componentes unificados para la interfaz de resolución de conflictos
+
+// Variable global para almacenar los detalles de los mods
+let modDetails = [];
+
+/**
+ * Establece los detalles de los mods para uso en funciones UI
+ * @param {Array} details - Array con detalles de los mods
+ */
+function setModDetails(details) {
+    modDetails = details || [];
+}
+
+/**
+ * Obtiene los detalles de un mod por su ID
+ * @param {string} modId - ID del mod
+ * @returns {Object|null} - Detalles del mod o null si no se encuentra
+ */
+function getModDetails(modId) {
+    return modDetails.find(mod => mod.id === modId);
+}
 
 /**
  * Crea un elemento de lista para representar un mod
@@ -194,6 +214,8 @@ function enableDragAndDrop(listElement) {
 }
 
 module.exports = {
+    setModDetails,
+    getModDetails,
     createModListItem,
     moveItem,
     updatePriorityIndicators,

@@ -4,6 +4,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 const remoteMain = require('@electron/remote/main');
+const config = require('./config');
 
 /**
  * Clase que gestiona las ventanas de la aplicación
@@ -22,8 +23,8 @@ class WindowManager {
      */
     createMainWindow() {
         this.mainWindow = new BrowserWindow({
-            width: 700,
-            height: 1000,
+            width: config.UI.MAIN_WINDOW.WIDTH,
+            height: config.UI.MAIN_WINDOW.HEIGHT,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
@@ -59,8 +60,8 @@ class WindowManager {
         this.conflictWindow = new BrowserWindow({
             parent: this.mainWindow,
             modal: true,
-            width: 700,
-            height: 800,
+            width: config.UI.CONFLICT_WINDOW.WIDTH,
+            height: config.UI.CONFLICT_WINDOW.HEIGHT,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
@@ -83,7 +84,7 @@ class WindowManager {
                 if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
                     this.conflictWindow.webContents.send('conflict-data', this.lastConflictData);
                 }
-            }, 200); // Aumentado a 200ms para dar más tiempo a que se registren los handlers
+            }, config.UI.TIMEOUTS.UI_UPDATE); // Usar el timeout definido en config
         });
         
         return new Promise((resolve) => {

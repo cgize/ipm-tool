@@ -9,6 +9,7 @@ const AdmZip = require('adm-zip');
 const Logger = require('./logger');
 const { findPakFiles, getModOrder, extractModIdFromPak, extractRelevantXmls } = require('./fileUtils');
 const { applyManualModOrder, mergePresetItems } = require('./conflict-manager');
+const config = require('./config');
 
 /**
  * Combina los atributos de los presets, dando prioridad al preset con mayor prioridad
@@ -27,7 +28,7 @@ function combinePresetAttributes(presets) {
     
     // Copiar todos los atributos que empiezan con "@_"
     for (const key in highestPriorityPreset) {
-        if (key.startsWith("@_")) {
+        if (key.startsWith(config.XML.ATTRIBUTE_PREFIX)) {
             combinedAttributes[key] = highestPriorityPreset[key];
         }
     }
@@ -46,22 +47,26 @@ async function combineXmls(xmlFiles, options = {}) {
         allowBooleanAttributes: true
     });
 
+    // Configuración específica para asegurar la sintaxis abreviada
     const builder = new XMLBuilder({
         ignoreAttributes: false,
         format: true,
         indentBy: "\t",
-        attributeNamePrefix: "@_"
+        attributeNamePrefix: "@_",
+        suppressEmptyNode: true,         // Clave para usar />
+        closingTagForEmptyElement: false, // Clave para asegurar sintaxis />
+        suppressBooleanAttributes: false  // Mantener atributos booleanos
     });
 
     const presetMap = new Map();
     const { 
         combineOnlyConflicts = false, 
         manualModOrder = null,
-        resolutionMethod = 'manual' // Método de resolución
+        resolutionMethod = config.RESOLUTION_METHODS.MANUAL
     } = options;
 
     // Si hay un orden manual, aplicarlo a los XMLs
-    if (resolutionMethod === 'manual' && manualModOrder && manualModOrder.length > 0) {
+    if (resolutionMethod === config.RESOLUTION_METHODS.MANUAL && manualModOrder && manualModOrder.length > 0) {
         xmlFiles = applyManualModOrder(xmlFiles, manualModOrder);
     }
 
@@ -77,7 +82,7 @@ async function combineXmls(xmlFiles, options = {}) {
             if (!presets) continue;
             const presetArray = Array.isArray(presets) ? presets : [presets];
             for (const preset of presetArray) {
-                const presetName = preset["@_Name"];
+                const presetName = preset[config.XML.NAME_ATTRIBUTE];
                 if (!presetName) continue;
                 if (!presetMap.has(presetName)) {
                     presetMap.set(presetName, []);
@@ -140,7 +145,7 @@ async function combineXmls(xmlFiles, options = {}) {
     let finalPresets = selectedPresets;
     if (combineOnlyConflicts) {
         finalPresets = selectedPresets.filter(preset => {
-            const presetsForName = presetMap.get(preset["@_Name"]);
+            const presetsForName = presetMap.get(preset[config.XML.NAME_ATTRIBUTE]);
             return presetsForName.length > 1;
         });
         
@@ -166,6 +171,7 @@ async function combineXmls(xmlFiles, options = {}) {
         finalPresets = [];
     }
 
+    // IMPORTANTE: Asegurarse de que los atributos Mode y Health estén presentes
     const combinedXml = {
         database: {
             "@_xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
@@ -173,7 +179,24 @@ async function combineXmls(xmlFiles, options = {}) {
             "@_xsi:noNamespaceSchemaLocation": "InventoryPreset.xsd",
             InventoryPresets: {
                 "@_version": "2",
-                InventoryPreset: finalPresets
+                "@_Mode": "All",  // Añadir Mode="All" como especificaste
+                "@_Health": "1",  // Añadir Health="1" como especificaste
+                // Asegurarse de que cada preset tenga sus PresetItem configurados correctamente
+                InventoryPreset: finalPresets.map(preset => {
+                    if (preset.PresetItem && Array.isArray(preset.PresetItem)) {
+                        // Asegurarse que cada PresetItem sea procesado como un nodo vacío
+                        preset.PresetItem = preset.PresetItem.map(item => {
+                            // Esta transformación es crítica para que el builder los trate como nodos vacíos
+                            const newItem = {...item};
+                            // Eliminar cualquier contenido textual para asegurar que sean nodos vacíos
+                            if (newItem['#text']) {
+                                delete newItem['#text'];
+                            }
+                            return newItem;
+                        });
+                    }
+                    return preset;
+                })
             }
         }
     };
@@ -194,39 +217,41 @@ async function ensureDirectoryExists(dirPath) {
 }
 
 async function createIpmPak(combinedXml, modsPath) {
-    const ipmDataPath = path.join(modsPath, 'zipmtool', 'Data');
+    const ipmDataPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER, config.PATHS.DATA_PATH);
     await ensureDirectoryExists(ipmDataPath);
 
     const zip = new AdmZip();
-    zip.addFile('Libs/Tables/item/InventoryPreset__ipmtool.xml', Buffer.from(combinedXml));
+    zip.addFile(config.FILES.OUTPUT_XML_NAME, Buffer.from(combinedXml));
 
-    await fs.writeFile(path.join(ipmDataPath, 'zipmtool.pak'), zip.toBuffer());
+    await fs.writeFile(path.join(ipmDataPath, config.FILES.OUTPUT_PAK_NAME), zip.toBuffer());
 }
 
 async function createModManifest(modsPath) {
-    const ipmPath = path.join(modsPath, 'zipmtool');
+    const ipmPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER);
     await ensureDirectoryExists(ipmPath);
 
     const manifestContent = {
         kcd_mod: {
             info: {
-                "@_name": "IPM Tool",
-                "@_modid": "zipmtool",
-                "@_description": "App to merge xml inventorypreset",
-                "@_author": "cgize",
-                "@_version": "1.0",
+                "@_name": config.MOD_INFO.NAME,
+                "@_modid": config.MOD_INFO.MOD_ID,
+                "@_description": config.MOD_INFO.DESCRIPTION,
+                "@_author": config.MOD_INFO.AUTHOR,
+                "@_version": config.MOD_INFO.VERSION,
                 "@_created_on": "",
-                "@_modifies_level": "false"
+                "@_modifies_level": config.MOD_INFO.MODIFIES_LEVEL
             }
         }
     };
 
+    // Usar la misma configuración actualizada para el builder
     const builder = new XMLBuilder({
         format: true,
         indentBy: "\t",
-        suppressEmptyNode: false,
+        suppressEmptyNode: true,
+        closingTagForEmptyElement: false,
         ignoreAttributes: false,
-        attributeNamePrefix: "@_"
+        attributeNamePrefix: config.XML.ATTRIBUTE_PREFIX
     });
 
     const xml = builder.build(manifestContent);
@@ -234,11 +259,11 @@ async function createModManifest(modsPath) {
 }
 
 async function updateModOrder(modsPath) {
-    const modOrderPath = path.join(modsPath, 'mod_order.txt');
+    const modOrderPath = path.join(modsPath, config.PATHS.MOD_ORDER_FILE);
     try {
         let modOrder = await fs.readFile(modOrderPath, 'utf8');
-        if (!modOrder.includes('zipmtool')) {
-            modOrder += '\nipmtool';
+        if (!modOrder.includes(config.MODS.TOOL_MOD_ID)) {
+            modOrder += `\n${config.MODS.TOOL_MOD_ID}`;
             await fs.writeFile(modOrderPath, modOrder.trim());
         }
     } catch (e) {
@@ -254,7 +279,7 @@ async function searchAndMerge(modsPath, options = {}) {
         combineOnlyConflicts = false, 
         steamModsPath = null,
         manualModOrder = null,
-        resolutionMethod = 'manual' // Método de resolución
+        resolutionMethod = config.RESOLUTION_METHODS.MANUAL
     } = options;
 
     try {
@@ -276,7 +301,7 @@ async function searchAndMerge(modsPath, options = {}) {
         logger.info(`PAK files found: ${pakFiles.length}`);
 
         if (pakFiles.length === 0) {
-            throw new Error('No PAK files were found in the specified paths');
+            throw new Error(config.MESSAGES.NO_PAKS_FOUND);
         }
 
         const extractResult = await extractRelevantXmls(pakFiles, modOrderData, (fileName) => {
@@ -296,18 +321,18 @@ async function searchAndMerge(modsPath, options = {}) {
         logger.info(`Conflicts detected: ${conflicts.length}`);
 
         if (xmlFiles.length === 0) {
-            throw new Error('No relevant XML files were found in the PAKs');
+            throw new Error(config.MESSAGES.NO_XML_FOUND);
         }
 
         // Comprobar si necesitamos ordenación manual y no se ha seleccionado un método automático
-        if (needsManualOrder && !modOrderData.exists && !manualModOrder && resolutionMethod === 'manual') {
+        if (needsManualOrder && !modOrderData.exists && !manualModOrder && resolutionMethod === config.RESOLUTION_METHODS.MANUAL) {
             // Devolvemos la información necesaria para que la interfaz muestre la pantalla de priorización
             return {
                 success: false,
                 needsManualOrder: true,
                 conflicts: conflicts,
                 modDetails: Array.from(modDetails.values()),
-                message: 'Se encontraron conflictos entre mods. Por favor, establece el orden de prioridad.',
+                message: config.MESSAGES.CONFLICTS_DETECTED,
                 logContent: logger.getLogContent()
             };
         }
@@ -342,7 +367,7 @@ async function searchAndMerge(modsPath, options = {}) {
 
         return {
             success: true,
-            message: 'Ipmtool .pak file has been created and mod_order updated.',
+            message: config.MESSAGES.PROCESS_COMPLETED,
             combinedMods: includedModIds, // Ahora solo devolvemos los mods incluidos realmente
             logContent: logger.getLogContent()
         };

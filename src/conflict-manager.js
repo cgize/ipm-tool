@@ -1,6 +1,9 @@
 // conflict-manager.js
 // Módulo para manejar la detección y resolución de conflictos entre mods
 
+const { XMLParser } = require('fast-xml-parser');
+const config = require('./config');
+
 /**
  * Detecta conflictos entre mods basados en los valores de los items
  * @param {Map} conflictItemValues - Mapa con los valores de los items por mod
@@ -69,10 +72,9 @@ function detectModConflicts(conflictItemValues) {
  * @param {Map} conflictItemValues - Mapa para detectar conflictos
  */
 function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
-    const { XMLParser } = require('fast-xml-parser');
     const parser = new XMLParser({
         ignoreAttributes: false,
-        attributeNamePrefix: "@_"
+        attributeNamePrefix: config.XML.ATTRIBUTE_PREFIX
     });
     
     try {
@@ -86,7 +88,7 @@ function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
         const presetArray = Array.isArray(presets) ? presets : [presets];
         
         for (const preset of presetArray) {
-            const presetName = preset["@_Name"];
+            const presetName = preset[config.XML.NAME_ATTRIBUTE];
             if (!presetName) continue;
             
             const presetItems = preset.PresetItem;
@@ -95,11 +97,11 @@ function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
             const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
             
             for (const item of itemArray) {
-                const itemName = item["@_Name"];
+                const itemName = item[config.XML.NAME_ATTRIBUTE];
                 if (!itemName) continue;
                 
                 // Enfocarse principalmente en el atributo Amount
-                const amount = item["@_Amount"];
+                const amount = item[config.XML.AMOUNT_ATTRIBUTE];
                 
                 // Almacenar el valor en los detalles del mod
                 if (modDetails.has(modId) && amount !== undefined) {
@@ -163,12 +165,12 @@ function applyManualModOrder(xmlFiles, manualModOrder) {
  * @param {string} strategy - Estrategia de fusión: 'manual' (priority), 'highest-value', 'lowest-value'
  * @returns {Array} - Lista de items fusionados
  */
-function mergePresetItems(presetObjs, strategy = 'manual') {
+function mergePresetItems(presetObjs, strategy = config.RESOLUTION_METHODS.MANUAL) {
     // Creamos un mapa para almacenar todos los PresetItems por su nombre
     const itemMap = new Map();
     
     // Si la estrategia es por prioridad (manual), ordenamos primero
-    if (strategy === 'manual') {
+    if (strategy === config.RESOLUTION_METHODS.MANUAL) {
         // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
         const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
         
@@ -183,7 +185,7 @@ function mergePresetItems(presetObjs, strategy = 'manual') {
             
             // Procesamos cada PresetItem
             for (const item of itemArray) {
-                const itemName = item["@_Name"];
+                const itemName = item[config.XML.NAME_ATTRIBUTE];
                 if (!itemName) continue;
                 
                 // Si este item no existe ya en el mapa, lo añadimos
@@ -205,7 +207,7 @@ function mergePresetItems(presetObjs, strategy = 'manual') {
             const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
             
             for (const item of itemArray) {
-                const itemName = item["@_Name"];
+                const itemName = item[config.XML.NAME_ATTRIBUTE];
                 if (!itemName) continue;
                 
                 if (!itemMap.has(itemName)) {
@@ -234,7 +236,7 @@ function mergePresetItems(presetObjs, strategy = 'manual') {
  */
 function compareAndUpdateValues(existingItem, newItem, strategy) {
     // Definir si queremos el valor mayor o menor
-    const wantHigher = strategy === 'highest-value';
+    const wantHigher = strategy === config.RESOLUTION_METHODS.HIGHEST_VALUE;
     
     // Función auxiliar para comparar y actualizar un atributo específico
     function compareAndUpdate(attribute) {
@@ -254,13 +256,13 @@ function compareAndUpdateValues(existingItem, newItem, strategy) {
     }
     
     // Comparar los atributos principales
-    compareAndUpdate("@_Count");
-    compareAndUpdate("@_Amount");
-    compareAndUpdate("@_Value");
+    compareAndUpdate(config.XML.COUNT_ATTRIBUTE);
+    compareAndUpdate(config.XML.AMOUNT_ATTRIBUTE);
+    compareAndUpdate(config.XML.VALUE_ATTRIBUTE);
     
     // Para otros atributos, mantener los existentes o agregar nuevos
     for (const key in newItem) {
-        if (!existingItem[key] && key !== "@_Name") {
+        if (!existingItem[key] && key !== config.XML.NAME_ATTRIBUTE) {
             existingItem[key] = newItem[key];
         }
     }

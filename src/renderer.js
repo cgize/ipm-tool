@@ -9,6 +9,7 @@ const { ipcRenderer } = require('electron'); // Importar directamente de electro
 const fs = require('fs').promises;
 const storage = require('electron-json-storage');
 const app = remote.app;
+const config = require('./config');
 
 document.addEventListener('DOMContentLoaded', () => {
     const modsPathInput = document.getElementById('modsPath');
@@ -90,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Función auxiliar para limpiar el directorio ipmtool
     async function cleanIpmToolDirectory(modsPath) {
-        const ipmToolPath = path.join(modsPath, 'zipmtool');
+        const ipmToolPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER);
         try {
             await fs.rm(ipmToolPath, { recursive: true, force: true });
         } catch (err) {
@@ -115,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const steamModsPath = steamModsPathInput.value;
         
         if (!modsPath) {
-            alert('Please select the Game Mods path');
+            alert(config.MESSAGES.SELECT_MODS_PATH);
             return;
         }
     
@@ -162,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (resolutionResult.cancelled) {
                     // El usuario canceló la resolución de conflictos
                     resultDiv.style.display = 'block';
-                    resultMessage.textContent = 'Process cancelled by user';
+                    resultMessage.textContent = config.MESSAGES.PROCESS_CANCELLED;
                     logContentElement.textContent = result.logContent;
                     return;
                 }
@@ -173,11 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Opciones actualizadas según el método de resolución
                 const finalOptions = {
                     ...options,
-                    resolutionMethod: resolutionResult.method || 'manual'
+                    resolutionMethod: resolutionResult.method || config.RESOLUTION_METHODS.MANUAL
                 };
                 
                 // Si el método es manual, incluir el orden manual
-                if (resolutionResult.method === 'manual' && resolutionResult.manualModOrder) {
+                if (resolutionResult.method === config.RESOLUTION_METHODS.MANUAL && resolutionResult.manualModOrder) {
                     finalOptions.manualModOrder = resolutionResult.manualModOrder;
                 }
                 
@@ -232,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!logContent) return;
         
         try {
-            const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
+            const logPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER, config.PATHS.LOG_FILE);
             await ensureDirectoryExists(path.dirname(logPath));
             await fs.writeFile(logPath, logContent);
         } catch (error) {
