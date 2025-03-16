@@ -65,6 +65,9 @@ async function combineXmls(xmlFiles, options = {}) {
         xmlFiles = applyManualModOrder(xmlFiles, manualModOrder);
     }
 
+    // Set para rastrear los IDs de los mods que realmente contribuyeron
+    const contributingModIds = new Set();
+
     for (const xmlFile of xmlFiles) {
         try {
             const parsed = parser.parse(xmlFile.content);
@@ -84,6 +87,9 @@ async function combineXmls(xmlFiles, options = {}) {
                     priority: xmlFile.priority,
                     modId: xmlFile.modId
                 });
+                
+                // Registrar este mod como contribuyente
+                contributingModIds.add(xmlFile.modId);
             }
         } catch (err) {
             console.error(`Error processing ${xmlFile.fileName}:`, err);
@@ -91,6 +97,8 @@ async function combineXmls(xmlFiles, options = {}) {
     }
 
     const selectedPresets = [];
+    const includedModIds = new Set(); // Mods que se incluyen en la salida final
+    
     for (const [presetName, presets] of presetMap) {
         let selectedPreset;
         if (presets.length > 1) {
@@ -110,6 +118,9 @@ async function combineXmls(xmlFiles, options = {}) {
                 ...combinedAttributes,
                 PresetItem: mergedItems
             };
+            
+            // Registrar todos los mods en conflicto como incluidos
+            presets.forEach(p => includedModIds.add(p.modId));
         } else {
             // Si no hay conflicto, tomamos el preset tal cual
             selectedPreset = JSON.parse(JSON.stringify(presets[0].preset));
@@ -117,6 +128,11 @@ async function combineXmls(xmlFiles, options = {}) {
             // Aseguramos que PresetItem sea un array para consistencia
             const presetItems = selectedPreset.PresetItem || [];
             selectedPreset.PresetItem = Array.isArray(presetItems) ? presetItems : [presetItems];
+            
+            // Solo registramos este mod si no estamos en modo "solo conflictos"
+            if (!combineOnlyConflicts) {
+                includedModIds.add(presets[0].modId);
+            }
         }
         selectedPresets.push(selectedPreset);
     }
@@ -127,6 +143,22 @@ async function combineXmls(xmlFiles, options = {}) {
             const presetsForName = presetMap.get(preset["@_Name"]);
             return presetsForName.length > 1;
         });
+        
+        // Actualizar la lista de mods incluidos para que solo contenga los que tienen conflictos
+        if (combineOnlyConflicts) {
+            const conflictModIds = new Set();
+            for (const [presetName, presets] of presetMap) {
+                if (presets.length > 1) {
+                    presets.forEach(p => conflictModIds.add(p.modId));
+                }
+            }
+            // Intersección de los conjuntos
+            for (const modId of includedModIds) {
+                if (!conflictModIds.has(modId)) {
+                    includedModIds.delete(modId);
+                }
+            }
+        }
     }
 
     // Aseguramos que finalPresets sea siempre un array
@@ -146,7 +178,10 @@ async function combineXmls(xmlFiles, options = {}) {
         }
     };
 
-    return builder.build(combinedXml);
+    return {
+        xml: builder.build(combinedXml),
+        includedModIds: Array.from(includedModIds)
+    };
 }
 
 // Funciones auxiliares
@@ -278,11 +313,14 @@ async function searchAndMerge(modsPath, options = {}) {
         }
 
         // Si llegamos aquí, o bien no se necesita ordenación manual, o ya se ha proporcionado una resolución
-        const combinedXml = await combineXmls(xmlFiles, {
+        const result = await combineXmls(xmlFiles, {
             combineOnlyConflicts,
             manualModOrder,
             resolutionMethod
         });
+        
+        const combinedXml = result.xml;
+        const includedModIds = result.includedModIds;
         
         await createIpmPak(combinedXml, modsPath);
         await createModManifest(modsPath);
@@ -296,13 +334,16 @@ async function searchAndMerge(modsPath, options = {}) {
         
         // Registrar el método de resolución utilizado
         logger.info(`Used resolution method: ${resolutionMethod}`);
+        
+        // Registrar los mods que se combinaron realmente
+        logger.info(`Mods included in the combined output: ${includedModIds.join(', ')}`);
 
         logger.info('Process completed successfully');
 
         return {
             success: true,
             message: 'Ipmtool .pak file has been created and mod_order updated.',
-            combinedMods: modIds,
+            combinedMods: includedModIds, // Ahora solo devolvemos los mods incluidos realmente
             logContent: logger.getLogContent()
         };
     } catch (error) {

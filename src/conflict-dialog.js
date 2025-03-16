@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Solicitar explícitamente los datos en caso de que se hayan enviado antes de estar listo
+    // Solicitar los datos
     setTimeout(() => {
         if (!initialDataReceived) {
             ipcRenderer.send('request-conflict-data');
