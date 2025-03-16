@@ -1,4 +1,6 @@
 // main.js
+// Archivo principal de la aplicación Electron
+
 const { app, ipcMain } = require('electron');
 // Importar y configurar @electron/remote
 const remoteMain = require('@electron/remote/main');
