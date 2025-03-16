@@ -227,34 +227,44 @@ async function createIpmPak(combinedXml, modsPath) {
 }
 
 async function createModManifest(modsPath) {
+    // Construye la ruta completa donde se guardará el mod
     const ipmPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER);
+    // Crea los directorios necesarios si no existen
     await ensureDirectoryExists(ipmPath);
 
+    // Define la estructura del archivo mod.manifest
+    // Esta estructura sigue el formato estándar requerido por el juego
     const manifestContent = {
         kcd_mod: {
             info: {
-                "@_name": config.MOD_INFO.NAME,
-                "@_modid": config.MOD_INFO.MOD_ID,
-                "@_description": config.MOD_INFO.DESCRIPTION,
-                "@_author": config.MOD_INFO.AUTHOR,
-                "@_version": config.MOD_INFO.VERSION,
-                "@_created_on": "",
-                "@_modifies_level": config.MOD_INFO.MODIFIES_LEVEL
+                "name": config.MOD_INFO.NAME,
+                "modid": config.MOD_INFO.MOD_ID,
+                "description": config.MOD_INFO.DESCRIPTION,
+                "author": config.MOD_INFO.AUTHOR,
+                "version": config.MOD_INFO.VERSION,
+                "created_on": "",
+                "modifies_level": config.MOD_INFO.MODIFIES_LEVEL
             }
         }
     };
 
-    // Usar la misma configuración actualizada para el builder
+    // Configura el generador de XML con los parámetros adecuados
+    // para producir un documento XML bien formateado
     const builder = new XMLBuilder({
-        format: true,
-        indentBy: "\t",
-        suppressEmptyNode: true,
-        closingTagForEmptyElement: false,
-        ignoreAttributes: false,
-        attributeNamePrefix: config.XML.ATTRIBUTE_PREFIX
+        format: true,               // Aplica formato legible con saltos de línea
+        indentBy: "\t",             // Usa tabulaciones para indentar
+        suppressEmptyNode: true,    // Optimiza nodos vacíos
+        closingTagForEmptyElement: false, // Usa formato <tag/> para elementos vacíos
+        ignoreAttributes: false,    // Procesa atributos XML
+        attributeNamePrefix: "@_"   // Prefijo para distinguir atributos
     });
 
-    const xml = builder.build(manifestContent);
+    // Agrega la declaración XML al inicio del documento
+    // Requerida para que el juego reconozca correctamente el archivo
+    let xml = '<?xml version="1.0" encoding="us-ascii"?>\n';
+    xml += builder.build(manifestContent);
+    
+    // Guarda el archivo manifest en la ubicación del mod
     await fs.writeFile(path.join(ipmPath, 'mod.manifest'), xml);
 }
 
