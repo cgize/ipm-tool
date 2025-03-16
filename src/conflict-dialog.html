@@ -9,30 +9,68 @@
     <title>Mod Conflict Resolution</title>
 </head>
 <body>
-    <div id="titlebar">
-        <div id="window-title">IPM Tool - Resolve Mod Conflicts</div>
-        <div id="window-controls">
-            <button id="minimize-btn">&#8211;</button>
-            <button id="maximize-btn">&#9744;</button>
-            <button id="close-btn">&#10005;</button>
-        </div>
-    </div>
+    <!-- Quitamos el titlebar, pero añadimos un div para permitir el arrastre -->
+    <div id="drag-region"></div>
 
     <div id="conflict-container">
         <div class="instructions">
             <h3>Mod Conflict Resolution</h3>
-            <p>Mods that modify the same items with different values have been detected. Set the priority order by dragging the mods or using the arrow buttons.</p>
-            <p class="priority-info">⚠️ Mods at the top will have higher priority. The first mod in the list will determine the final values for conflicting items.</p>
+            <p>No mod_order.txt file was found. Please select how you want to resolve conflicts between mods that modify the same items.</p>
         </div>
         
-        <div id="conflicts-list">
-            <!-- Conflict groups will be added here dynamically -->
+        <div id="resolution-options">
+            <div class="resolution-option" id="option-highest-value">
+                <div class="option-header">
+                    <input type="radio" name="resolution-method" id="highest-value-radio" value="highest-value">
+                    <label for="highest-value-radio">Automatic Resolution (Highest Value)</label>
+                </div>
+                <div class="option-description">
+                    <p>Automatically resolve conflicts by keeping the highest values for each item.</p>
+                    <div class="example">
+                        <p><strong>Example:</strong></p>
+                        <p>If <span class="mod-name">Mod 1</span> sets <code>money</code> to <span class="value-highlight">1500</span> and <span class="mod-name">Mod 2</span> sets it to <span class="value-highlight">3350</span>, the value <span class="value-highlight">3350</span> will be kept.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="resolution-option" id="option-lowest-value">
+                <div class="option-header">
+                    <input type="radio" name="resolution-method" id="lowest-value-radio" value="lowest-value">
+                    <label for="lowest-value-radio">Automatic Resolution (Lowest Value)</label>
+                </div>
+                <div class="option-description">
+                    <p>Automatically resolve conflicts by keeping the lowest values for each item.</p>
+                    <div class="example">
+                        <p><strong>Example:</strong></p>
+                        <p>If <span class="mod-name">Mod 1</span> sets <code>money</code> to <span class="value-highlight">1500</span> and <span class="mod-name">Mod 2</span> sets it to <span class="value-highlight">3350</span>, the value <span class="value-highlight">1500</span> will be kept.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="resolution-option" id="option-manual">
+                <div class="option-header">
+                    <input type="radio" name="resolution-method" id="manual-resolution-radio" value="manual">
+                    <label for="manual-resolution-radio">Manual Resolution (Set Mod Priority)</label>
+                </div>
+                <div class="option-description">
+                    <p>Manually set the order of priority for mods. Mods at the top of the list will have higher priority.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="manual-resolution-panel" style="display: none;">
+            <p class="priority-info">⚠️ Mods at the top will have higher priority. The first mod in the list will determine the final values for conflicting items.</p>
+            <div id="mod-list-container">
+                <ul id="mod-priority-list" class="mod-priority-list">
+                    <!-- Mods will be listed here dynamically -->
+                </ul>
+            </div>
         </div>
     </div>
 
     <div id="action-buttons">
         <button id="cancel-btn">Cancel</button>
-        <button id="apply-order-btn">Apply Order and Combine</button>
+        <button id="apply-resolution-btn">Apply Resolution</button>
     </div>
 
     <script src="./conflict-dialog.js"></script>

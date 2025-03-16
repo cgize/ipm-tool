@@ -59,16 +59,18 @@ class WindowManager {
         this.conflictWindow = new BrowserWindow({
             parent: this.mainWindow,
             modal: true,
-            width: 800,
-            height: 650,
+            width: 700,
+            height: 800,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
                 enableRemoteModule: true
             },
             autoHideMenuBar: true,
-            frame: false,
-            resizable: true
+            frame: false,  // Sin barra de título
+            resizable: true,
+            titleBarStyle: 'hidden',  // Ocultar barra de título pero mantener los controles de ventana
+            titleBarOverlay: false
         });
         
         remoteMain.enable(this.conflictWindow.webContents);

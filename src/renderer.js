@@ -216,16 +216,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                // Reanudar proceso con el orden manual
+                // Reanudar proceso con el método de resolución seleccionado
                 processingDiv.style.display = 'block';
                 
-                // Segunda fase: combinar con el orden manual
-                const manualOptions = {
+                // Opciones actualizadas según el método de resolución
+                const finalOptions = {
                     ...options,
-                    manualModOrder: resolutionResult.manualModOrder
+                    resolutionMethod: resolutionResult.method || 'manual'
                 };
                 
-                const finalResult = await searchAndMerge(modsPath, manualOptions);
+                // Si el método es manual, incluir el orden manual
+                if (resolutionResult.method === 'manual' && resolutionResult.manualModOrder) {
+                    finalOptions.manualModOrder = resolutionResult.manualModOrder;
+                }
+                
+                const finalResult = await searchAndMerge(modsPath, finalOptions);
                 
                 // Mostrar resultado final
                 updateUIWithResult(finalResult);
@@ -245,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resultDiv.style.display = 'block';
             resultMessage.textContent = error.message;
             logContentElement.textContent = error.logContent || 'No log available';
-            processingDiv.style.display = 'none';
+            procesprocessingDiv.style.display = 'none';
         }
     });
     

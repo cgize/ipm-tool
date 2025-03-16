@@ -35,8 +35,154 @@ function combinePresetAttributes(presets) {
     return combinedAttributes;
 }
 
+/**
+ * Función para fusionar items de presets usando el método de valor mayor
+ * @param {Array} presets - Lista de presets con sus items
+ * @returns {Array} - Lista combinada de items
+ */
+function mergePresetItemsByHighestValue(presets) {
+    // Creamos un mapa para almacenar todos los PresetItems por su nombre
+    const itemMap = new Map();
+    
+    // Procesamos todos los presets para encontrar cada item único
+    for (const presetObj of presets) {
+        const preset = presetObj.preset;
+        const presetItems = preset.PresetItem || [];
+        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
+        
+        for (const item of itemArray) {
+            const itemName = item["@_Name"];
+            if (!itemName) continue;
+            
+            if (!itemMap.has(itemName)) {
+                // Si es la primera vez que vemos este item, simplemente lo agregamos
+                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
+            } else {
+                // Si el item ya existe, comparamos valores
+                const existingItem = itemMap.get(itemName);
+                
+                // Comparar y quedarnos con el COUNT mayor
+                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
+                    const newCount = parseFloat(item["@_Count"]);
+                    const existingCount = parseFloat(existingItem["@_Count"]);
+                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount > existingCount) {
+                        existingItem["@_Count"] = item["@_Count"];
+                    }
+                } else if (item["@_Count"] !== undefined) {
+                    existingItem["@_Count"] = item["@_Count"];
+                }
+                
+                // Comparar y quedarnos con el AMOUNT mayor
+                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
+                    const newAmount = parseFloat(item["@_Amount"]);
+                    const existingAmount = parseFloat(existingItem["@_Amount"]);
+                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount > existingAmount) {
+                        existingItem["@_Amount"] = item["@_Amount"];
+                    }
+                } else if (item["@_Amount"] !== undefined) {
+                    existingItem["@_Amount"] = item["@_Amount"];
+                }
+                
+                // Comparar y quedarnos con el VALUE mayor
+                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
+                    const newValue = parseFloat(item["@_Value"]);
+                    const existingValue = parseFloat(existingItem["@_Value"]);
+                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue > existingValue) {
+                        existingItem["@_Value"] = item["@_Value"];
+                    }
+                } else if (item["@_Value"] !== undefined) {
+                    existingItem["@_Value"] = item["@_Value"];
+                }
+                
+                // Para otros atributos, mantener los existentes o agregar nuevos
+                for (const key in item) {
+                    if (!existingItem[key] && key !== "@_Name") {
+                        existingItem[key] = item[key];
+                    }
+                }
+            }
+        }
+    }
+    
+    // Convertir el mapa a un array
+    return Array.from(itemMap.values());
+}
+
+/**
+ * Función para fusionar items de presets usando el método de valor menor
+ * @param {Array} presets - Lista de presets con sus items
+ * @returns {Array} - Lista combinada de items
+ */
+function mergePresetItemsByLowestValue(presets) {
+    // Creamos un mapa para almacenar todos los PresetItems por su nombre
+    const itemMap = new Map();
+    
+    // Procesamos todos los presets para encontrar cada item único
+    for (const presetObj of presets) {
+        const preset = presetObj.preset;
+        const presetItems = preset.PresetItem || [];
+        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
+        
+        for (const item of itemArray) {
+            const itemName = item["@_Name"];
+            if (!itemName) continue;
+            
+            if (!itemMap.has(itemName)) {
+                // Si es la primera vez que vemos este item, simplemente lo agregamos
+                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
+            } else {
+                // Si el item ya existe, comparamos valores
+                const existingItem = itemMap.get(itemName);
+                
+                // Comparar y quedarnos con el COUNT menor
+                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
+                    const newCount = parseFloat(item["@_Count"]);
+                    const existingCount = parseFloat(existingItem["@_Count"]);
+                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount < existingCount) {
+                        existingItem["@_Count"] = item["@_Count"];
+                    }
+                } else if (item["@_Count"] !== undefined) {
+                    existingItem["@_Count"] = item["@_Count"];
+                }
+                
+                // Comparar y quedarnos con el AMOUNT menor
+                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
+                    const newAmount = parseFloat(item["@_Amount"]);
+                    const existingAmount = parseFloat(existingItem["@_Amount"]);
+                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount < existingAmount) {
+                        existingItem["@_Amount"] = item["@_Amount"];
+                    }
+                } else if (item["@_Amount"] !== undefined) {
+                    existingItem["@_Amount"] = item["@_Amount"];
+                }
+                
+                // Comparar y quedarnos con el VALUE menor
+                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
+                    const newValue = parseFloat(item["@_Value"]);
+                    const existingValue = parseFloat(existingItem["@_Value"]);
+                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue < existingValue) {
+                        existingItem["@_Value"] = item["@_Value"];
+                    }
+                } else if (item["@_Value"] !== undefined) {
+                    existingItem["@_Value"] = item["@_Value"];
+                }
+                
+                // Para otros atributos, mantener los existentes o agregar nuevos
+                for (const key in item) {
+                    if (!existingItem[key] && key !== "@_Name") {
+                        existingItem[key] = item[key];
+                    }
+                }
+            }
+        }
+    }
+    
+    // Convertir el mapa a un array
+    return Array.from(itemMap.values());
+}
+
 // Función para combinar XMLs
-async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrder = null) {
+async function combineXmls(xmlFiles, options = {}) {
     const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: "@_",
@@ -54,9 +200,14 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
     });
 
     const presetMap = new Map();
+    const { 
+        combineOnlyConflicts = false, 
+        manualModOrder = null,
+        resolutionMethod = 'manual' // Nuevo parámetro: 'manual', 'highest-value', 'lowest-value'
+    } = options;
 
     // Si hay un orden manual, aplicarlo a los XMLs
-    if (manualModOrder && manualModOrder.length > 0) {
+    if (resolutionMethod === 'manual' && manualModOrder && manualModOrder.length > 0) {
         xmlFiles = applyManualModOrder(xmlFiles, manualModOrder);
     }
 
@@ -97,8 +248,16 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
             // Combinar los atributos del preset
             const combinedAttributes = combinePresetAttributes(presets);
             
-            // Fusionar los PresetItems usando la función de conflict-manager
-            const mergedItems = mergePresetItems(presets);
+            // Determinar qué método de fusión usar
+            let mergedItems;
+            if (resolutionMethod === 'highest-value') {
+                mergedItems = mergePresetItemsByHighestValue(presets);
+            } else if (resolutionMethod === 'lowest-value') {
+                mergedItems = mergePresetItemsByLowestValue(presets);
+            } else {
+                // Método manual (o por defecto): usar la función original de mergePresetItems
+                mergedItems = mergePresetItems(presets);
+            }
             
             // Crear el preset combinado
             selectedPreset = {
@@ -213,11 +372,13 @@ async function searchAndMerge(modsPath, options = {}) {
         onProcessingFile, 
         combineOnlyConflicts = false, 
         steamModsPath = null,
-        manualModOrder = null 
+        manualModOrder = null,
+        resolutionMethod = 'manual' // Nuevo parámetro
     } = options;
 
     try {
         logger.info(`Starting process in: ${modsPath}`);
+        logger.info(`Resolution method: ${resolutionMethod}`);
         
         // Si se proporciona una ruta de Steam Workshop, la registramos en el log
         if (steamModsPath) {
@@ -257,8 +418,8 @@ async function searchAndMerge(modsPath, options = {}) {
             throw new Error('No relevant XML files were found in the PAKs');
         }
 
-        // Comprobar si necesitamos ordenación manual
-        if (needsManualOrder && !manualModOrder) {
+        // Comprobar si necesitamos ordenación manual y no se ha seleccionado un método automático
+        if (needsManualOrder && !modOrderData.exists && !manualModOrder && resolutionMethod === 'manual') {
             // Devolvemos la información necesaria para que la interfaz muestre la pantalla de priorización
             return {
                 success: false,
@@ -270,8 +431,13 @@ async function searchAndMerge(modsPath, options = {}) {
             };
         }
 
-        // Si llegamos aquí, o bien no se necesita ordenación manual o ya se ha proporcionado
-        const combinedXml = await combineXmls(xmlFiles, combineOnlyConflicts, manualModOrder);
+        // Si llegamos aquí, o bien no se necesita ordenación manual, o ya se ha proporcionado una resolución
+        const combinedXml = await combineXmls(xmlFiles, {
+            combineOnlyConflicts,
+            manualModOrder,
+            resolutionMethod
+        });
+        
         await createIpmPak(combinedXml, modsPath);
         await createModManifest(modsPath);
         await updateModOrder(modsPath);
@@ -281,6 +447,9 @@ async function searchAndMerge(modsPath, options = {}) {
             logger.setManualOrder(manualModOrder);
             logger.info(`Used manual mod order: ${manualModOrder.join(', ')}`);
         }
+        
+        // Registrar el método de resolución utilizado
+        logger.info(`Used resolution method: ${resolutionMethod}`);
 
         logger.info('Process completed successfully');
 
