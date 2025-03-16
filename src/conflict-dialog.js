@@ -16,6 +16,7 @@ let conflicts = [];
 let modDetails = [];
 let selectedMethod = '';
 let initialDataReceived = false;
+let contentReady = false;
 
 // Habilitar drag para la ventana completa a través del elemento instructions
 function setupWindowDrag() {
@@ -38,8 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initResolutionOptions();
     initActionButtons();
     
+    // Marcar que el DOM está listo
+    contentReady = true;
+    
     // Recibir datos de conflictos desde el proceso principal
     ipcRenderer.on('conflict-data', (event, data) => {
+        if (!data) return;
+        
         conflicts = data.conflicts || [];
         modDetails = data.modDetails || [];
         initialDataReceived = true;
@@ -64,12 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Solicitar explícitamente los datos en caso de que se hayan enviado antes de estar listo
-    setTimeout(() => {
-        if (!initialDataReceived) {
-            ipcRenderer.send('request-conflict-data');
-        }
-    }, config.UI.TIMEOUTS.UI_UPDATE);
+    // Si ya habíamos recibido los datos antes de que el DOM estuviera listo,
+    // procesar esos datos ahora
+    if (initialDataReceived) {
+        // Re-solicitar los datos explícitamente
+        ipcRenderer.send('request-conflict-data');
+    }
 });
 
 /**

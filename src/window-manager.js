@@ -57,6 +57,7 @@ class WindowManager {
             modDetails: modDetails
         };
         
+        // Crear la ventana con show: false para evitar parpadeo
         this.conflictWindow = new BrowserWindow({
             parent: this.mainWindow,
             modal: true,
@@ -65,27 +66,37 @@ class WindowManager {
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
-                enableRemoteModule: true
+                enableRemoteModule: true,
+                additionalArguments: ['--conflict-data-ready']
             },
             autoHideMenuBar: true,
-            frame: false,  // Sin barra de título
+            frame: false,
             resizable: true,
-            titleBarStyle: 'hidden',  // Ocultar barra de título pero mantener los controles de ventana
-            titleBarOverlay: false
+            titleBarStyle: 'hidden',
+            titleBarOverlay: false,
+            show: false, // Importante: No mostrar la ventana inmediatamente
+            backgroundColor: '#181818' // Color de fondo para reducir el efecto de parpadeo
         });
         
         remoteMain.enable(this.conflictWindow.webContents);
-        this.conflictWindow.loadFile(path.join(__dirname, 'conflict-dialog.html'));
         
-        // Asegurarse de que la ventana esté completamente cargada antes de enviar los datos
-        this.conflictWindow.once('ready-to-show', () => {
-            // Pequeño retraso para asegurar que los manejadores de eventos estén registrados
-            setTimeout(() => {
-                if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
-                    this.conflictWindow.webContents.send('conflict-data', this.lastConflictData);
-                }
-            }, config.UI.TIMEOUTS.UI_UPDATE); // Usar el timeout definido en config
+        // Manejador para cuando la página ha terminado de cargar
+        this.conflictWindow.webContents.on('did-finish-load', () => {
+            // Enviar datos inmediatamente después de que la página se haya cargado
+            if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+                this.conflictWindow.webContents.send('conflict-data', this.lastConflictData);
+            }
         });
+        
+        // Manejador para cuando el contenido está listo para mostrarse
+        this.conflictWindow.once('ready-to-show', () => {
+            if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+                this.conflictWindow.show();
+            }
+        });
+        
+        // Cargar el archivo HTML
+        this.conflictWindow.loadFile(path.join(__dirname, 'conflict-dialog.html'));
         
         return new Promise((resolve) => {
             this.pendingResolveCallback = resolve;
