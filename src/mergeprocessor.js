@@ -1,5 +1,5 @@
 // mergeprocessor.js
-// Módulo para combinar y fusionar XMLs de mods en conflicto
+// Módulo revisado para combinar y fusionar XMLs de mods en conflicto
 
 const fs = require('fs').promises;
 const path = require('path');
@@ -35,152 +35,6 @@ function combinePresetAttributes(presets) {
     return combinedAttributes;
 }
 
-/**
- * Función para fusionar items de presets usando el método de valor mayor
- * @param {Array} presets - Lista de presets con sus items
- * @returns {Array} - Lista combinada de items
- */
-function mergePresetItemsByHighestValue(presets) {
-    // Creamos un mapa para almacenar todos los PresetItems por su nombre
-    const itemMap = new Map();
-    
-    // Procesamos todos los presets para encontrar cada item único
-    for (const presetObj of presets) {
-        const preset = presetObj.preset;
-        const presetItems = preset.PresetItem || [];
-        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-        
-        for (const item of itemArray) {
-            const itemName = item["@_Name"];
-            if (!itemName) continue;
-            
-            if (!itemMap.has(itemName)) {
-                // Si es la primera vez que vemos este item, simplemente lo agregamos
-                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
-            } else {
-                // Si el item ya existe, comparamos valores
-                const existingItem = itemMap.get(itemName);
-                
-                // Comparar y quedarnos con el COUNT mayor
-                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
-                    const newCount = parseFloat(item["@_Count"]);
-                    const existingCount = parseFloat(existingItem["@_Count"]);
-                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount > existingCount) {
-                        existingItem["@_Count"] = item["@_Count"];
-                    }
-                } else if (item["@_Count"] !== undefined) {
-                    existingItem["@_Count"] = item["@_Count"];
-                }
-                
-                // Comparar y quedarnos con el AMOUNT mayor
-                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
-                    const newAmount = parseFloat(item["@_Amount"]);
-                    const existingAmount = parseFloat(existingItem["@_Amount"]);
-                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount > existingAmount) {
-                        existingItem["@_Amount"] = item["@_Amount"];
-                    }
-                } else if (item["@_Amount"] !== undefined) {
-                    existingItem["@_Amount"] = item["@_Amount"];
-                }
-                
-                // Comparar y quedarnos con el VALUE mayor
-                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
-                    const newValue = parseFloat(item["@_Value"]);
-                    const existingValue = parseFloat(existingItem["@_Value"]);
-                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue > existingValue) {
-                        existingItem["@_Value"] = item["@_Value"];
-                    }
-                } else if (item["@_Value"] !== undefined) {
-                    existingItem["@_Value"] = item["@_Value"];
-                }
-                
-                // Para otros atributos, mantener los existentes o agregar nuevos
-                for (const key in item) {
-                    if (!existingItem[key] && key !== "@_Name") {
-                        existingItem[key] = item[key];
-                    }
-                }
-            }
-        }
-    }
-    
-    // Convertir el mapa a un array
-    return Array.from(itemMap.values());
-}
-
-/**
- * Función para fusionar items de presets usando el método de valor menor
- * @param {Array} presets - Lista de presets con sus items
- * @returns {Array} - Lista combinada de items
- */
-function mergePresetItemsByLowestValue(presets) {
-    // Creamos un mapa para almacenar todos los PresetItems por su nombre
-    const itemMap = new Map();
-    
-    // Procesamos todos los presets para encontrar cada item único
-    for (const presetObj of presets) {
-        const preset = presetObj.preset;
-        const presetItems = preset.PresetItem || [];
-        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-        
-        for (const item of itemArray) {
-            const itemName = item["@_Name"];
-            if (!itemName) continue;
-            
-            if (!itemMap.has(itemName)) {
-                // Si es la primera vez que vemos este item, simplemente lo agregamos
-                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
-            } else {
-                // Si el item ya existe, comparamos valores
-                const existingItem = itemMap.get(itemName);
-                
-                // Comparar y quedarnos con el COUNT menor
-                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
-                    const newCount = parseFloat(item["@_Count"]);
-                    const existingCount = parseFloat(existingItem["@_Count"]);
-                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount < existingCount) {
-                        existingItem["@_Count"] = item["@_Count"];
-                    }
-                } else if (item["@_Count"] !== undefined) {
-                    existingItem["@_Count"] = item["@_Count"];
-                }
-                
-                // Comparar y quedarnos con el AMOUNT menor
-                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
-                    const newAmount = parseFloat(item["@_Amount"]);
-                    const existingAmount = parseFloat(existingItem["@_Amount"]);
-                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount < existingAmount) {
-                        existingItem["@_Amount"] = item["@_Amount"];
-                    }
-                } else if (item["@_Amount"] !== undefined) {
-                    existingItem["@_Amount"] = item["@_Amount"];
-                }
-                
-                // Comparar y quedarnos con el VALUE menor
-                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
-                    const newValue = parseFloat(item["@_Value"]);
-                    const existingValue = parseFloat(existingItem["@_Value"]);
-                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue < existingValue) {
-                        existingItem["@_Value"] = item["@_Value"];
-                    }
-                } else if (item["@_Value"] !== undefined) {
-                    existingItem["@_Value"] = item["@_Value"];
-                }
-                
-                // Para otros atributos, mantener los existentes o agregar nuevos
-                for (const key in item) {
-                    if (!existingItem[key] && key !== "@_Name") {
-                        existingItem[key] = item[key];
-                    }
-                }
-            }
-        }
-    }
-    
-    // Convertir el mapa a un array
-    return Array.from(itemMap.values());
-}
-
 // Función para combinar XMLs
 async function combineXmls(xmlFiles, options = {}) {
     const parser = new XMLParser({
@@ -203,7 +57,7 @@ async function combineXmls(xmlFiles, options = {}) {
     const { 
         combineOnlyConflicts = false, 
         manualModOrder = null,
-        resolutionMethod = 'manual' // Nuevo parámetro: 'manual', 'highest-value', 'lowest-value'
+        resolutionMethod = 'manual' // Método de resolución
     } = options;
 
     // Si hay un orden manual, aplicarlo a los XMLs
@@ -248,16 +102,8 @@ async function combineXmls(xmlFiles, options = {}) {
             // Combinar los atributos del preset
             const combinedAttributes = combinePresetAttributes(presets);
             
-            // Determinar qué método de fusión usar
-            let mergedItems;
-            if (resolutionMethod === 'highest-value') {
-                mergedItems = mergePresetItemsByHighestValue(presets);
-            } else if (resolutionMethod === 'lowest-value') {
-                mergedItems = mergePresetItemsByLowestValue(presets);
-            } else {
-                // Método manual (o por defecto): usar la función original de mergePresetItems
-                mergedItems = mergePresetItems(presets);
-            }
+            // Usar el método de fusión seleccionado desde conflict-manager.js
+            const mergedItems = mergePresetItems(presets, resolutionMethod);
             
             // Crear el preset combinado
             selectedPreset = {
@@ -373,7 +219,7 @@ async function searchAndMerge(modsPath, options = {}) {
         combineOnlyConflicts = false, 
         steamModsPath = null,
         manualModOrder = null,
-        resolutionMethod = 'manual' // Nuevo parámetro
+        resolutionMethod = 'manual' // Método de resolución
     } = options;
 
     try {

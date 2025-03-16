@@ -83,7 +83,7 @@ class WindowManager {
                 if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
                     this.conflictWindow.webContents.send('conflict-data', this.lastConflictData);
                 }
-            }, 100);
+            }, 200); // Aumentado a 200ms para dar más tiempo a que se registren los handlers
         });
         
         return new Promise((resolve) => {
@@ -125,6 +125,29 @@ class WindowManager {
             if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
                 this.conflictWindow.close();
             }
+        }
+    }
+
+    /**
+     * Verifica si la ventana de conflictos está abierta
+     * @returns {boolean} - True si la ventana está abierta y accesible
+     */
+    isConflictWindowOpen() {
+        return this.conflictWindow !== null && !this.conflictWindow.isDestroyed();
+    }
+
+    /**
+     * Cierra todas las ventanas abiertas
+     */
+    closeAllWindows() {
+        if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+            this.conflictWindow.close();
+            this.conflictWindow = null;
+        }
+        
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.close();
+            this.mainWindow = null;
         }
     }
 }

@@ -1,6 +1,13 @@
 // conflict-ui-components.js
 // Funciones para crear componentes de UI para el diálogo de conflictos
 
+const { 
+    createModListItem, 
+    updatePriorityIndicators, 
+    getDragAfterElement, 
+    enableDragAndDrop 
+} = require('./conflict-utils');
+
 // Variable global para almacenar los detalles de los mods
 // Esta variable será alimentada desde conflict-dialog.js
 let modDetails = [];
@@ -108,53 +115,6 @@ function createConflictItemElement(item) {
 }
 
 /**
- * Agrupa y crea los elementos de visualización para los items en conflicto
- * @param {Array} items - Lista de items en conflicto
- * @returns {HTMLElement} - Contenedor con los items agrupados por preset
- */
-function createGroupedConflictItems(items) {
-    const container = document.createElement('div');
-    container.className = 'grouped-conflict-items';
-    
-    // Agrupar los items por su preset padre
-    const groupedByPreset = {};
-    items.forEach(item => {
-        const presetName = item.parentPreset || 'Sin preset';
-        if (!groupedByPreset[presetName]) {
-            groupedByPreset[presetName] = [];
-        }
-        groupedByPreset[presetName].push(item);
-    });
-    
-    // Crear secciones para cada grupo de preset
-    for (const [presetName, presetItems] of Object.entries(groupedByPreset)) {
-        const presetGroup = document.createElement('div');
-        presetGroup.className = 'preset-group';
-        
-        // Encabezado del preset
-        const presetHeader = document.createElement('div');
-        presetHeader.className = 'preset-header';
-        presetHeader.textContent = `Preset: ${presetName}`;
-        presetGroup.appendChild(presetHeader);
-        
-        // Lista de items para este preset
-        const itemsList = document.createElement('div');
-        itemsList.className = 'items-list';
-        
-        // Agregar cada item
-        presetItems.forEach(item => {
-            const itemElement = createCompactConflictItem(item);
-            itemsList.appendChild(itemElement);
-        });
-        
-        presetGroup.appendChild(itemsList);
-        container.appendChild(presetGroup);
-    }
-    
-    return container;
-}
-
-/**
  * Crea una versión compacta del elemento de visualización para un item en conflicto
  * @param {Object} item - Datos del item en conflicto
  * @returns {HTMLElement} - Elemento DOM compacto para el item
@@ -224,6 +184,53 @@ function createCompactConflictItem(item) {
     }
     
     return itemContainer;
+}
+
+/**
+ * Agrupa y crea los elementos de visualización para los items en conflicto
+ * @param {Array} items - Lista de items en conflicto
+ * @returns {HTMLElement} - Contenedor con los items agrupados por preset
+ */
+function createGroupedConflictItems(items) {
+    const container = document.createElement('div');
+    container.className = 'grouped-conflict-items';
+    
+    // Agrupar los items por su preset padre
+    const groupedByPreset = {};
+    items.forEach(item => {
+        const presetName = item.parentPreset || 'Sin preset';
+        if (!groupedByPreset[presetName]) {
+            groupedByPreset[presetName] = [];
+        }
+        groupedByPreset[presetName].push(item);
+    });
+    
+    // Crear secciones para cada grupo de preset
+    for (const [presetName, presetItems] of Object.entries(groupedByPreset)) {
+        const presetGroup = document.createElement('div');
+        presetGroup.className = 'preset-group';
+        
+        // Encabezado del preset
+        const presetHeader = document.createElement('div');
+        presetHeader.className = 'preset-header';
+        presetHeader.textContent = `Preset: ${presetName}`;
+        presetGroup.appendChild(presetHeader);
+        
+        // Lista de items para este preset
+        const itemsList = document.createElement('div');
+        itemsList.className = 'items-list';
+        
+        // Agregar cada item
+        presetItems.forEach(item => {
+            const itemElement = createCompactConflictItem(item);
+            itemsList.appendChild(itemElement);
+        });
+        
+        presetGroup.appendChild(itemsList);
+        container.appendChild(presetGroup);
+    }
+    
+    return container;
 }
 
 /**
@@ -375,138 +382,6 @@ function createPresetGroup(presetName, items) {
 }
 
 /**
- * Crea un elemento de lista para representar un mod
- * @param {string} modId - ID del mod
- * @param {Object} modDetails - Detalles del mod
- * @param {boolean} isFirst - Indica si es el primer mod (mayor prioridad)
- * @param {Function} moveItemCallback - Función para manejar el movimiento de items
- * @returns {HTMLElement} - Elemento DOM que representa el mod
- */
-function createModListItem(modId, modDetails, isFirst, moveItemCallback) {
-    const li = document.createElement('li');
-    li.className = 'mod-item';
-    li.dataset.modId = modId || '';
-    li.draggable = true;
-    
-    const modInfoDiv = document.createElement('div');
-    modInfoDiv.className = 'mod-info';
-    
-    const modNameDiv = document.createElement('div');
-    modNameDiv.className = 'mod-name';
-    modNameDiv.textContent = modId || 'Mod desconocido';
-    modInfoDiv.appendChild(modNameDiv);
-    
-    if (modDetails) {
-        const modDetailsDiv = document.createElement('div');
-        modDetailsDiv.className = 'mod-details';
-        
-        // Mostrar prioridad si existe
-        if (modDetails.priority !== undefined && modDetails.priority !== -1) {
-            modDetailsDiv.textContent = `Prioridad original: ${modDetails.priority}`;
-        } else {
-            modDetailsDiv.textContent = 'Sin prioridad definida';
-        }
-        
-        modInfoDiv.appendChild(modDetailsDiv);
-    }
-    
-    li.appendChild(modInfoDiv);
-    
-    // Controles de movimiento
-    const controlsDiv = document.createElement('div');
-    controlsDiv.className = 'mod-controls';
-    
-    const moveUpBtn = document.createElement('button');
-    moveUpBtn.className = 'move-up';
-    moveUpBtn.innerHTML = '&#9650;';
-    moveUpBtn.title = 'Mover hacia arriba (aumentar prioridad)';
-    moveUpBtn.addEventListener('click', () => {
-        if (moveItemCallback) moveItemCallback(li, 'up');
-    });
-    controlsDiv.appendChild(moveUpBtn);
-    
-    const moveDownBtn = document.createElement('button');
-    moveDownBtn.className = 'move-down';
-    moveDownBtn.innerHTML = '&#9660;';
-    moveDownBtn.title = 'Mover hacia abajo (disminuir prioridad)';
-    moveDownBtn.addEventListener('click', () => {
-        if (moveItemCallback) moveItemCallback(li, 'down');
-    });
-    controlsDiv.appendChild(moveDownBtn);
-    
-    li.appendChild(controlsDiv);
-    
-    // Añadir un indicador visual si es el primer mod (mayor prioridad)
-    if (isFirst) {
-        const priorityDiv = document.createElement('div');
-        priorityDiv.className = 'priority-badge';
-        priorityDiv.textContent = '1º';
-        priorityDiv.style.backgroundColor = 'var(--accent-color)';
-        priorityDiv.style.color = 'white';
-        priorityDiv.style.padding = '2px 6px';
-        priorityDiv.style.borderRadius = '4px';
-        priorityDiv.style.fontSize = '12px';
-        priorityDiv.style.marginRight = '8px';
-        controlsDiv.prepend(priorityDiv);
-    }
-    
-    return li;
-}
-
-/**
- * Actualiza los indicadores de prioridad en la lista
- * @param {HTMLElement} list - Lista de elementos
- */
-function updatePriorityIndicators(list) {
-    if (!list) return;
-    
-    // Eliminar todos los indicadores de prioridad
-    list.querySelectorAll('.priority-badge').forEach(badge => badge.remove());
-    
-    // Añadir indicador al primer elemento
-    const firstItem = list.querySelector('.mod-item');
-    if (firstItem) {
-        const controlsDiv = firstItem.querySelector('.mod-controls');
-        if (controlsDiv) {
-            const priorityDiv = document.createElement('div');
-            priorityDiv.className = 'priority-badge';
-            priorityDiv.textContent = '1º';
-            priorityDiv.style.backgroundColor = 'var(--accent-color)';
-            priorityDiv.style.color = 'white';
-            priorityDiv.style.padding = '2px 6px';
-            priorityDiv.style.borderRadius = '4px';
-            priorityDiv.style.fontSize = '12px';
-            priorityDiv.style.marginRight = '8px';
-            
-            controlsDiv.prepend(priorityDiv);
-        }
-    }
-}
-
-/**
- * Determina después de qué elemento se debe soltar un elemento arrastrado
- * @param {HTMLElement} container - Contenedor de elementos
- * @param {number} y - Posición vertical del puntero
- * @returns {HTMLElement|null} - Elemento después del cual insertar
- */
-function getDragAfterElement(container, y) {
-    if (!container) return null;
-    
-    const draggableElements = [...container.querySelectorAll('.mod-item:not(.dragging)')];
-    
-    return draggableElements.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        
-        if (offset < 0 && offset > closest.offset) {
-            return { offset: offset, element: child };
-        } else {
-            return closest;
-        }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-/**
  * Crea la lista de mods para ordenarlos
  * @param {Array} mods - Lista de IDs de mods
  * @param {number} groupIndex - Índice del grupo de conflictos
@@ -519,8 +394,8 @@ function createModsOrderList(mods, groupIndex) {
     
     // Ordenar los mods: los que están en modDetails primero, luego el resto
     const modsToDisplay = [...mods].sort((a, b) => {
-        const modA = modDetails.find(m => m.id === a);
-        const modB = modDetails.find(m => m.id === b);
+        const modA = getModDetails(a.modId);
+        const modB = getModDetails(b.modId);
         
         // Si ambos tienen detalles, ordenar por prioridad (si existe)
         if (modA && modB) {
@@ -533,91 +408,17 @@ function createModsOrderList(mods, groupIndex) {
         if (modB) return 1;
         
         // Orden alfabético si no hay criterio mejor
-        return a.localeCompare(b);
+        return a.modId.localeCompare(b.modId);
     });
     
     // Crear los elementos de la lista para cada mod
-    modsToDisplay.forEach((modId, index) => {
-        const modDetailInfo = getModDetails(modId);
-        const modItemLi = createModListItem(modId, modDetailInfo, index === 0, moveItem);
+    modsToDisplay.forEach((mod, index) => {
+        const modDetailInfo = getModDetails(mod.modId);
+        const modItemLi = createModListItem(mod.modId, modDetailInfo, index === 0, moveItem);
         modListUl.appendChild(modItemLi);
     });
     
     return modListUl;
-}
-
-/**
- * Mueve un elemento de la lista hacia arriba o hacia abajo
- * @param {HTMLElement} item - Elemento a mover
- * @param {string} direction - Dirección ('up' o 'down')
- */
-function moveItem(item, direction) {
-    const list = item.parentNode;
-    if (direction === 'up' && item.previousElementSibling) {
-        list.insertBefore(item, item.previousElementSibling);
-    } else if (direction === 'down' && item.nextElementSibling) {
-        list.insertBefore(item.nextElementSibling, item);
-    }
-    updatePriorityIndicators(list);
-}
-
-/**
- * Habilita el arrastrar y soltar para una lista
- * @param {HTMLElement} listElement - Lista de elementos arrastables
- */
-function enableDragAndDrop(listElement) {
-    let draggedItem = null;
-    
-    // Eventos para los elementos de la lista
-    const items = listElement.querySelectorAll('.mod-item');
-    items.forEach(item => {
-        // Cuando comienza el arrastre
-        item.addEventListener('dragstart', function(e) {
-            draggedItem = this;
-            setTimeout(() => this.classList.add('dragging'), 0);
-        });
-        
-        // Cuando termina el arrastre
-        item.addEventListener('dragend', function() {
-            this.classList.remove('dragging');
-            draggedItem = null;
-            updatePriorityIndicators(listElement);
-        });
-        
-        // Cuando un elemento arrastrado entra en otro elemento
-        item.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
-        
-        // Cuando se suelta un elemento sobre otro
-        item.addEventListener('drop', function(e) {
-            e.preventDefault();
-            if (draggedItem && this !== draggedItem) {
-                // Determinar si insertar antes o después según la posición
-                const rect = this.getBoundingClientRect();
-                const midpoint = (rect.top + rect.bottom) / 2;
-                
-                if (e.clientY < midpoint) {
-                    listElement.insertBefore(draggedItem, this);
-                } else {
-                    listElement.insertBefore(draggedItem, this.nextSibling);
-                }
-            }
-        });
-    });
-    
-    // Eventos para el contenedor de la lista
-    listElement.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        const afterElement = getDragAfterElement(this, e.clientY);
-        if (draggedItem) {
-            if (afterElement) {
-                this.insertBefore(draggedItem, afterElement);
-            } else {
-                this.appendChild(draggedItem);
-            }
-        }
-    });
 }
 
 /**
@@ -629,13 +430,20 @@ function getModDetails(modId) {
     return modDetails.find(mod => mod.id === modId);
 }
 
+/**
+ * Establece los detalles de los mods para uso en funciones UI
+ * @param {Array} details - Array con detalles de los mods
+ */
+function setModDetails(details) {
+    modDetails = details || [];
+}
+
 // Exportar todas las funciones del módulo
 module.exports = {
     createConflictItemElement,
     createCompactConflictItem,
     createGroupedConflictItems,
     createConflictGroupElement,
-    createModListItem,
-    updatePriorityIndicators,
-    getDragAfterElement
+    setModDetails,
+    getModDetails
 };

@@ -76,36 +76,25 @@ document.addEventListener('DOMContentLoaded', () => {
             inputElement.value = selectedPath;
             
             // Guardar la configuración actualizada
-            storage.get('appSettings', (error, data) => {
-                if (error) {
-                    console.error('Error loading settings:', error);
-                    return;
-                }
-                
-                // Crear settings si no existen
-                const settings = data || {};
-                
-                if (inputElement === modsPathInput) {
-                    settings.modsPath = selectedPath;
-                } else if (inputElement === steamModsPathInput) {
-                    settings.steamModsPath = selectedPath;
-                }
-                
-                storage.set('appSettings', settings, (error) => {
-                    if (error) console.error('Error saving settings:', error);
-                });
+            saveSettings({
+                modsPath: inputElement === modsPathInput ? selectedPath : undefined,
+                steamModsPath: inputElement === steamModsPathInput ? selectedPath : undefined
             });
             
             // Solo limpiar ipmtool cuando se selecciona la ruta principal de mods
             if (inputElement === modsPathInput) {
-                const ipmToolPath = path.join(selectedPath, 'zipmtool');
-                try {
-                    await fs.access(ipmToolPath);
-                    await fs.rm(ipmToolPath, { recursive: true, force: true });
-                } catch (err) {
-                    if (err.code !== 'ENOENT') console.error('Error deleting folder:', err);
-                }
+                await cleanIpmToolDirectory(selectedPath);
             }
+        }
+    }
+    
+    // Función auxiliar para limpiar el directorio ipmtool
+    async function cleanIpmToolDirectory(modsPath) {
+        const ipmToolPath = path.join(modsPath, 'zipmtool');
+        try {
+            await fs.rm(ipmToolPath, { recursive: true, force: true });
+        } catch (err) {
+            if (err.code !== 'ENOENT') console.error('Error deleting folder:', err);
         }
     }
 
@@ -114,35 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Configurar listeners para los radio buttons
     document.getElementById('combineOnlyConflicts').addEventListener('change', (e) => {
-        storage.get('appSettings', (error, data) => {
-            if (error) {
-                console.error('Error loading settings:', error);
-                return;
-            }
-            
-            const settings = data || {};
-            settings.combineOnlyConflicts = e.target.checked;
-            
-            storage.set('appSettings', settings, (error) => {
-                if (error) console.error('Error saving settings:', error);
-            });
-        });
+        saveSettings({ combineOnlyConflicts: e.target.checked });
     });
     
     document.getElementById('combineAllMods').addEventListener('change', (e) => {
-        storage.get('appSettings', (error, data) => {
-            if (error) {
-                console.error('Error loading settings:', error);
-                return;
-            }
-            
-            const settings = data || {};
-            settings.combineOnlyConflicts = !e.target.checked;
-            
-            storage.set('appSettings', settings, (error) => {
-                if (error) console.error('Error saving settings:', error);
-            });
-        });
+        saveSettings({ combineOnlyConflicts: !e.target.checked });
     });
 
     searchAndMergeBtn.addEventListener('click', async () => {
@@ -155,13 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         // Limpiar carpeta ipmtool antes de comenzar
-        const ipmToolPath = path.join(modsPath, 'zipmtool');
-        try {
-            await fs.rm(ipmToolPath, { recursive: true, force: true });
-        } catch (err) {
-            if (err.code !== 'ENOENT') console.error('Error deleting folder:', err);
-        }
+        await cleanIpmToolDirectory(modsPath);
     
+        // Mostrar la sección de procesamiento
         processingDiv.style.display = 'block';
         resultDiv.style.display = 'none';
         processingList.innerHTML = '';
@@ -170,27 +131,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const combineOnlyConflicts = document.getElementById('combineOnlyConflicts').checked;
         
         // Guardar la configuración actualizada
-        storage.get('appSettings', (error, data) => {
-            if (error) {
-                console.error('Error loading settings:', error);
-                return;
-            }
-            
-            const settings = data || {};
-            settings.combineOnlyConflicts = combineOnlyConflicts;
-            
-            storage.set('appSettings', settings, (error) => {
-                if (error) console.error('Error saving settings:', error);
-            });
-        });
+        saveSettings({ combineOnlyConflicts });
 
         const options = {
             onProcessingFile: (fileName) => {
                 const li = document.createElement('li');
                 li.textContent = fileName;
                 processingList.appendChild(li);
+                // Auto-scroll para mostrar el último elemento procesado
+                processingList.scrollTop = processingList.scrollHeight;
             },
-            combineOnlyConflicts: combineOnlyConflicts,
+            combineOnlyConflicts,
             steamModsPath: steamModsPath
         };
 
@@ -236,21 +187,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateUIWithResult(finalResult);
                 
                 // Guardar log
-                const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
-                await fs.writeFile(logPath, finalResult.logContent);
+                await saveLogFile(modsPath, finalResult.logContent);
             } else {
                 // Proceso normal sin conflictos que requieran intervención manual
                 updateUIWithResult(result);
                 
                 // Guardar log
-                const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
-                await fs.writeFile(logPath, result.logContent);
+                await saveLogFile(modsPath, result.logContent);
             }
         } catch (error) {
             resultDiv.style.display = 'block';
             resultMessage.textContent = error.message;
             logContentElement.textContent = error.logContent || 'No log available';
-            procesprocessingDiv.style.display = 'none';
+            processingDiv.style.display = 'none';
         }
     });
     
@@ -276,5 +225,56 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             combinedModsDiv.style.display = 'none';
         }
+    }
+    
+    // Función auxiliar para guardar el archivo de log
+    async function saveLogFile(modsPath, logContent) {
+        if (!logContent) return;
+        
+        try {
+            const logPath = path.join(modsPath, 'zipmtool', 'ipmtool.log');
+            await ensureDirectoryExists(path.dirname(logPath));
+            await fs.writeFile(logPath, logContent);
+        } catch (error) {
+            console.error('Error saving log file:', error);
+        }
+    }
+
+    // Función auxiliar para asegurar que un directorio existe
+    async function ensureDirectoryExists(dirPath) {
+        try {
+            await fs.access(dirPath);
+        } catch (error) {
+            await fs.mkdir(dirPath, { recursive: true });
+        }
+    }
+
+    // Función auxiliar para guardar configuración
+    function saveSettings(newSettings) {
+        storage.get('appSettings', (error, data) => {
+            if (error) {
+                console.error('Error loading settings:', error);
+                return;
+            }
+            
+            // Fusionar la configuración existente con la nueva
+            const updatedSettings = { ...data };
+            
+            if (newSettings.modsPath !== undefined) {
+                updatedSettings.modsPath = newSettings.modsPath;
+            }
+            
+            if (newSettings.steamModsPath !== undefined) {
+                updatedSettings.steamModsPath = newSettings.steamModsPath;
+            }
+            
+            if (newSettings.combineOnlyConflicts !== undefined) {
+                updatedSettings.combineOnlyConflicts = newSettings.combineOnlyConflicts;
+            }
+            
+            storage.set('appSettings', updatedSettings, (error) => {
+                if (error) console.error('Error saving settings:', error);
+            });
+        });
     }
 });
