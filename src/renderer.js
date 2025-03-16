@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (resolutionResult.cancelled) {
                     // El usuario canceló la resolución de conflictos
                     resultDiv.style.display = 'block';
-                    resultMessage.textContent = 'Proceso cancelado por el usuario';
+                    resultMessage.textContent = 'Process cancelled by user';
                     logContentElement.textContent = result.logContent;
                     return;
                 }

@@ -127,29 +127,6 @@ class WindowManager {
             }
         }
     }
-
-    /**
-     * Verifica si la ventana de conflictos está abierta
-     * @returns {boolean} - True si la ventana está abierta y accesible
-     */
-    isConflictWindowOpen() {
-        return this.conflictWindow !== null && !this.conflictWindow.isDestroyed();
-    }
-
-    /**
-     * Cierra todas las ventanas abiertas
-     */
-    closeAllWindows() {
-        if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
-            this.conflictWindow.close();
-            this.conflictWindow = null;
-        }
-        
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.close();
-            this.mainWindow = null;
-        }
-    }
 }
 
 module.exports = WindowManager;

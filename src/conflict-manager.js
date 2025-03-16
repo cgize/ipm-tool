@@ -163,110 +163,65 @@ function applyManualModOrder(xmlFiles, manualModOrder) {
 }
 
 /**
- * Fusiona items de presets por prioridad (método original)
+ * Fusiona items de presets según la estrategia seleccionada
  * @param {Array} presetObjs - Lista de objetos preset con sus prioridades
+ * @param {string} strategy - Estrategia de fusión: 'manual' (priority), 'highest-value', 'lowest-value'
  * @returns {Array} - Lista de items fusionados
  */
-function mergePresetItemsByPriority(presetObjs) {
-    // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
-    const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
-    
+function mergePresetItems(presetObjs, strategy = 'manual') {
     // Creamos un mapa para almacenar todos los PresetItems por su nombre
     const itemMap = new Map();
     
-    // Procesamos todos los presets en orden de prioridad (de mayor a menor)
-    for (const presetObj of sortedPresets) {
-        // Extraemos el preset actual
-        const preset = presetObj.preset;
+    // Si la estrategia es por prioridad (manual), ordenamos primero
+    if (strategy === 'manual') {
+        // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
+        const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
         
-        // Obtenemos todos los items del preset
-        const presetItems = preset.PresetItem || [];
-        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-        
-        // Procesamos cada PresetItem
-        for (const item of itemArray) {
-            const itemName = item["@_Name"];
-            if (!itemName) continue;
+        // Procesamos todos los presets en orden de prioridad (de mayor a menor)
+        for (const presetObj of sortedPresets) {
+            // Extraemos el preset actual
+            const preset = presetObj.preset;
             
-            // Si este item no existe ya en el mapa, lo añadimos
-            // Esto preserva los items del mod con mayor prioridad y añade items únicos
-            // de mods con menor prioridad
-            if (!itemMap.has(itemName)) {
-                itemMap.set(itemName, item);
+            // Obtenemos todos los items del preset
+            const presetItems = preset.PresetItem || [];
+            const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
+            
+            // Procesamos cada PresetItem
+            for (const item of itemArray) {
+                const itemName = item["@_Name"];
+                if (!itemName) continue;
+                
+                // Si este item no existe ya en el mapa, lo añadimos
+                // Esto preserva los items del mod con mayor prioridad y añade items únicos
+                // de mods con menor prioridad
+                if (!itemMap.has(itemName)) {
+                    itemMap.set(itemName, item);
+                }
+                // No reemplazamos items que ya existen porque los hemos procesado
+                // en orden de prioridad de mayor a menor
             }
-            // No reemplazamos items que ya existen porque los hemos procesado
-            // en orden de prioridad de mayor a menor
         }
-    }
-    
-    // Convertimos el mapa a un array
-    return Array.from(itemMap.values());
-}
-
-/**
- * Fusiona items de presets eligiendo el valor más alto para cada atributo
- * @param {Array} presetObjs - Lista de objetos preset con sus prioridades
- * @returns {Array} - Lista de items fusionados con los valores más altos
- */
-function mergePresetItemsByHighestValue(presetObjs) {
-    // Creamos un mapa para almacenar todos los PresetItems por su nombre
-    const itemMap = new Map();
-    
-    // Procesamos todos los presets para encontrar cada item único
-    for (const presetObj of presetObjs) {
-        const preset = presetObj.preset;
-        const presetItems = preset.PresetItem || [];
-        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-        
-        for (const item of itemArray) {
-            const itemName = item["@_Name"];
-            if (!itemName) continue;
+    } else {
+        // Para estrategias de valor más alto o más bajo
+        // Procesamos todos los presets para encontrar cada item único
+        for (const presetObj of presetObjs) {
+            const preset = presetObj.preset;
+            const presetItems = preset.PresetItem || [];
+            const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
             
-            if (!itemMap.has(itemName)) {
-                // Si es la primera vez que vemos este item, simplemente lo agregamos
-                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
-            } else {
-                // Si el item ya existe, comparamos valores
-                const existingItem = itemMap.get(itemName);
+            for (const item of itemArray) {
+                const itemName = item["@_Name"];
+                if (!itemName) continue;
                 
-                // Comparar y quedarnos con el COUNT mayor
-                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
-                    const newCount = parseFloat(item["@_Count"]);
-                    const existingCount = parseFloat(existingItem["@_Count"]);
-                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount > existingCount) {
-                        existingItem["@_Count"] = item["@_Count"];
-                    }
-                } else if (item["@_Count"] !== undefined) {
-                    existingItem["@_Count"] = item["@_Count"];
-                }
-                
-                // Comparar y quedarnos con el AMOUNT mayor
-                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
-                    const newAmount = parseFloat(item["@_Amount"]);
-                    const existingAmount = parseFloat(existingItem["@_Amount"]);
-                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount > existingAmount) {
-                        existingItem["@_Amount"] = item["@_Amount"];
-                    }
-                } else if (item["@_Amount"] !== undefined) {
-                    existingItem["@_Amount"] = item["@_Amount"];
-                }
-                
-                // Comparar y quedarnos con el VALUE mayor
-                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
-                    const newValue = parseFloat(item["@_Value"]);
-                    const existingValue = parseFloat(existingItem["@_Value"]);
-                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue > existingValue) {
-                        existingItem["@_Value"] = item["@_Value"];
-                    }
-                } else if (item["@_Value"] !== undefined) {
-                    existingItem["@_Value"] = item["@_Value"];
-                }
-                
-                // Para otros atributos, mantener los existentes o agregar nuevos
-                for (const key in item) {
-                    if (!existingItem[key] && key !== "@_Name") {
-                        existingItem[key] = item[key];
-                    }
+                if (!itemMap.has(itemName)) {
+                    // Si es la primera vez que vemos este item, simplemente lo agregamos
+                    itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
+                } else {
+                    // Si el item ya existe, comparamos valores
+                    const existingItem = itemMap.get(itemName);
+                    
+                    // Comparar y quedarnos con los valores según la estrategia
+                    compareAndUpdateValues(existingItem, item, strategy);
                 }
             }
         }
@@ -277,93 +232,42 @@ function mergePresetItemsByHighestValue(presetObjs) {
 }
 
 /**
- * Fusiona items de presets eligiendo el valor más bajo para cada atributo
- * @param {Array} presetObjs - Lista de objetos preset con sus prioridades
- * @returns {Array} - Lista de items fusionados con los valores más bajos
+ * Compara y actualiza valores de un item basado en la estrategia seleccionada
+ * @param {Object} existingItem - Item existente a actualizar
+ * @param {Object} newItem - Nuevo item con posibles valores diferentes
+ * @param {string} strategy - Estrategia de comparación ('highest-value' o 'lowest-value')
  */
-function mergePresetItemsByLowestValue(presetObjs) {
-    // Creamos un mapa para almacenar todos los PresetItems por su nombre
-    const itemMap = new Map();
+function compareAndUpdateValues(existingItem, newItem, strategy) {
+    // Definir si queremos el valor mayor o menor
+    const wantHigher = strategy === 'highest-value';
     
-    // Procesamos todos los presets para encontrar cada item único
-    for (const presetObj of presetObjs) {
-        const preset = presetObj.preset;
-        const presetItems = preset.PresetItem || [];
-        const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-        
-        for (const item of itemArray) {
-            const itemName = item["@_Name"];
-            if (!itemName) continue;
+    // Función auxiliar para comparar y actualizar un atributo específico
+    function compareAndUpdate(attribute) {
+        if (newItem[attribute] !== undefined && existingItem[attribute] !== undefined) {
+            const newValue = parseFloat(newItem[attribute]);
+            const existingValue = parseFloat(existingItem[attribute]);
             
-            if (!itemMap.has(itemName)) {
-                // Si es la primera vez que vemos este item, simplemente lo agregamos
-                itemMap.set(itemName, JSON.parse(JSON.stringify(item)));
-            } else {
-                // Si el item ya existe, comparamos valores
-                const existingItem = itemMap.get(itemName);
-                
-                // Comparar y quedarnos con el COUNT menor
-                if (item["@_Count"] !== undefined && existingItem["@_Count"] !== undefined) {
-                    const newCount = parseFloat(item["@_Count"]);
-                    const existingCount = parseFloat(existingItem["@_Count"]);
-                    if (!isNaN(newCount) && !isNaN(existingCount) && newCount < existingCount) {
-                        existingItem["@_Count"] = item["@_Count"];
-                    }
-                } else if (item["@_Count"] !== undefined) {
-                    existingItem["@_Count"] = item["@_Count"];
-                }
-                
-                // Comparar y quedarnos con el AMOUNT menor
-                if (item["@_Amount"] !== undefined && existingItem["@_Amount"] !== undefined) {
-                    const newAmount = parseFloat(item["@_Amount"]);
-                    const existingAmount = parseFloat(existingItem["@_Amount"]);
-                    if (!isNaN(newAmount) && !isNaN(existingAmount) && newAmount < existingAmount) {
-                        existingItem["@_Amount"] = item["@_Amount"];
-                    }
-                } else if (item["@_Amount"] !== undefined) {
-                    existingItem["@_Amount"] = item["@_Amount"];
-                }
-                
-                // Comparar y quedarnos con el VALUE menor
-                if (item["@_Value"] !== undefined && existingItem["@_Value"] !== undefined) {
-                    const newValue = parseFloat(item["@_Value"]);
-                    const existingValue = parseFloat(existingItem["@_Value"]);
-                    if (!isNaN(newValue) && !isNaN(existingValue) && newValue < existingValue) {
-                        existingItem["@_Value"] = item["@_Value"];
-                    }
-                } else if (item["@_Value"] !== undefined) {
-                    existingItem["@_Value"] = item["@_Value"];
-                }
-                
-                // Para otros atributos, mantener los existentes o agregar nuevos
-                for (const key in item) {
-                    if (!existingItem[key] && key !== "@_Name") {
-                        existingItem[key] = item[key];
-                    }
+            if (!isNaN(newValue) && !isNaN(existingValue)) {
+                const shouldUpdate = wantHigher ? (newValue > existingValue) : (newValue < existingValue);
+                if (shouldUpdate) {
+                    existingItem[attribute] = newItem[attribute];
                 }
             }
+        } else if (newItem[attribute] !== undefined) {
+            existingItem[attribute] = newItem[attribute];
         }
     }
     
-    // Convertir el mapa a un array
-    return Array.from(itemMap.values());
-}
-
-/**
- * Selector de método de fusión según el método de resolución
- * @param {string} resolutionMethod - Método de resolución ('manual', 'highest-value', 'lowest-value')
- * @param {Array} presetObjs - Lista de objetos preset con sus prioridades
- * @returns {Array} - Lista de items fusionados según el método seleccionado
- */
-function mergePresetItems(presetObjs, resolutionMethod = 'manual') {
-    switch(resolutionMethod) {
-        case 'highest-value':
-            return mergePresetItemsByHighestValue(presetObjs);
-        case 'lowest-value':
-            return mergePresetItemsByLowestValue(presetObjs);
-        case 'manual':
-        default:
-            return mergePresetItemsByPriority(presetObjs);
+    // Comparar los atributos principales
+    compareAndUpdate("@_Count");
+    compareAndUpdate("@_Amount");
+    compareAndUpdate("@_Value");
+    
+    // Para otros atributos, mantener los existentes o agregar nuevos
+    for (const key in newItem) {
+        if (!existingItem[key] && key !== "@_Name") {
+            existingItem[key] = newItem[key];
+        }
     }
 }
 

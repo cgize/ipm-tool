@@ -5,7 +5,6 @@ const {
     createModListItem, 
     moveItem, 
     updatePriorityIndicators, 
-    getDragAfterElement, 
     enableDragAndDrop 
 } = require('./conflict-utils');
 
@@ -44,6 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Asegurar que los datos sean válidos antes de renderizar
         if (conflicts.length > 0 || modDetails.length > 0) {
             populateModList();
+            
+            // Si se ha seleccionado el modo manual, asegurarse de que el panel sea visible
+            if (selectedMethod === 'manual') {
+                const manualResolutionPanel = document.getElementById('manual-resolution-panel');
+                if (manualResolutionPanel) {
+                    manualResolutionPanel.style.display = 'block';
+                }
+            }
         } else {
             // Si no hay conflictos, mostrar un mensaje
             showNoConflictsMessage();
@@ -84,6 +91,11 @@ function initResolutionOptions() {
             // Mostrar u ocultar el panel de resolución manual
             if (selectedMethod === 'manual') {
                 manualResolutionPanel.style.display = 'block';
+                
+                // Asegurar que la lista de mods esté poblada
+                if (initialDataReceived) {
+                    populateModList();
+                }
             } else {
                 manualResolutionPanel.style.display = 'none';
             }
@@ -105,6 +117,11 @@ function initResolutionOptions() {
                 // Mostrar u ocultar el panel de resolución manual
                 if (selectedMethod === 'manual') {
                     manualResolutionPanel.style.display = 'block';
+                    
+                    // Asegurar que la lista de mods esté poblada
+                    if (initialDataReceived) {
+                        populateModList();
+                    }
                 } else {
                     manualResolutionPanel.style.display = 'none';
                 }
@@ -164,21 +181,6 @@ function showNoConflictsMessage() {
 }
 
 /**
- * Verifica si un mod está involucrado en algún conflicto de InventoryPreset
- * @param {string} modId - ID del mod a verificar
- * @returns {boolean} - True si el mod está involucrado en algún conflicto
- */
-function isModInvolvedInInventoryPresetConflict(modId) {
-    if (!conflicts || conflicts.length === 0) return false;
-    
-    // Verificar si el modId está presente en algún conflicto
-    return conflicts.some(conflict => {
-        if (!conflict.mods || !Array.isArray(conflict.mods)) return false;
-        return conflict.mods.some(mod => mod.modId === modId);
-    });
-}
-
-/**
  * Llena la lista de mods para la resolución manual
  */
 function populateModList() {
@@ -191,6 +193,7 @@ function populateModList() {
     let relevantMods = new Set();
     
     // Añadir mods de los conflictos (que son específicamente de InventoryPreset)
+    // Esto integra directamente la lógica de isModInvolvedInInventoryPresetConflict
     if (conflicts && conflicts.length > 0) {
         conflicts.forEach(conflict => {
             if (conflict.mods && Array.isArray(conflict.mods)) {
