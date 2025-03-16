@@ -5,6 +5,7 @@ const { XMLParser, XMLBuilder } = require('fast-xml-parser');
 const AdmZip = require('adm-zip');
 const Logger = require('./logger');
 const { findPakFiles, getModOrder, extractModIdFromPak, extractRelevantXmls } = require('./fileUtils');
+const { applyManualModOrder, mergePresetItems } = require('./conflict-manager');
 
 // Función para combinar XMLs
 async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrder = null) {
@@ -26,17 +27,9 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
 
     const presetMap = new Map();
 
-    // Si hay un orden manual, reasignar las prioridades de los XMLs
+    // Si hay un orden manual, aplicarlo a los XMLs
     if (manualModOrder && manualModOrder.length > 0) {
-        for (const xmlFile of xmlFiles) {
-            const modIndex = manualModOrder.indexOf(xmlFile.modId);
-            if (modIndex !== -1) {
-                // Prioridad inversa: el índice 0 (primera posición) es la más alta prioridad
-                xmlFile.priority = manualModOrder.length - modIndex;
-            }
-        }
-        // Reordenar los XMLs según la nueva prioridad
-        xmlFiles.sort((a, b) => b.priority - a.priority);
+        xmlFiles = applyManualModOrder(xmlFiles, manualModOrder);
     }
 
     for (const xmlFile of xmlFiles) {
@@ -64,40 +57,6 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
         }
     }
 
-    function mergePresetItems(presetObjs) {
-        // Ordenamos los presets por prioridad (el número más bajo indica mayor prioridad)
-        const sortedPresets = [...presetObjs].sort((a, b) => a.priority - b.priority);
-        
-        // Tomamos el preset base del mod con mayor prioridad
-        const basePreset = sortedPresets[0];
-        
-        // Creamos un mapa para almacenar todos los PresetItems por su nombre
-        const itemMap = new Map();
-        
-        // Procesamos todos los presets en orden de prioridad (de mayor a menor)
-        for (const presetObj of sortedPresets) {
-            const presetItems = presetObj.preset.PresetItem || [];
-            const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-            
-            // Procesamos cada PresetItem
-            for (const item of itemArray) {
-                const itemName = item["@_Name"];
-                if (!itemName) continue;
-                
-                // Si este item no existe en el mapa o viene de un mod con mayor prioridad,
-                // lo añadimos/reemplazamos en el mapa
-                if (!itemMap.has(itemName)) {
-                    itemMap.set(itemName, item);
-                }
-                // No reemplazamos items que ya existen porque los hemos procesado
-                // en orden de prioridad de mayor a menor
-            }
-        }
-        
-        // Convertimos el mapa a un array
-        return Array.from(itemMap.values());
-    }
-
     const selectedPresets = [];
     for (const [presetName, presets] of presetMap) {
         let selectedPreset;
@@ -110,7 +69,7 @@ async function combineXmls(xmlFiles, combineOnlyConflicts = false, manualModOrde
             // Tomamos la estructura base del mod con mayor prioridad
             selectedPreset = JSON.parse(JSON.stringify(sortedPresets[0].preset));
             
-            // Fusionamos los PresetItems
+            // Fusionamos los PresetItems usando la función de conflict-manager
             const mergedItems = mergePresetItems(presets);
             selectedPreset.PresetItem = mergedItems;
         } else {
@@ -286,6 +245,7 @@ async function searchAndMerge(modsPath, options = {}) {
 
         // Si se ha usado un orden manual, lo registramos en el log
         if (manualModOrder && manualModOrder.length > 0) {
+            logger.setManualOrder(manualModOrder);
             logger.info(`Used manual mod order: ${manualModOrder.join(', ')}`);
         }
 

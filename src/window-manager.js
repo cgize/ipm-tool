@@ -1,0 +1,120 @@
+// window-manager.js
+// Módulo para gestionar las ventanas de la aplicación
+
+const { BrowserWindow } = require('electron');
+const path = require('path');
+const remoteMain = require('@electron/remote/main');
+
+/**
+ * Clase que gestiona las ventanas de la aplicación
+ */
+class WindowManager {
+    constructor() {
+        this.mainWindow = null;
+        this.conflictWindow = null;
+        this.pendingResolveCallback = null;
+    }
+
+    /**
+     * Crea la ventana principal de la aplicación
+     * @returns {BrowserWindow} - Referencia a la ventana principal
+     */
+    createMainWindow() {
+        this.mainWindow = new BrowserWindow({
+            width: 700,
+            height: 1000,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                enableRemoteModule: true
+            },
+            autoHideMenuBar: true,
+            frame: false,
+            resizable: false
+        });
+        
+        // Habilitar remote para esta ventana específica
+        remoteMain.enable(this.mainWindow.webContents);
+        
+        // Cargar el HTML desde la ruta correcta
+        this.mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+        
+        return this.mainWindow;
+    }
+
+    /**
+     * Crea la ventana de resolución de conflictos
+     * @param {Array} conflicts - Lista de conflictos a resolver
+     * @param {Array} modDetails - Detalles de los mods en conflicto
+     * @returns {Promise} - Promesa que se resolverá con la decisión del usuario
+     */
+    createConflictWindow(conflicts, modDetails) {
+        this.conflictWindow = new BrowserWindow({
+            parent: this.mainWindow,
+            modal: true,
+            width: 800,
+            height: 650,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                enableRemoteModule: true
+            },
+            autoHideMenuBar: true,
+            frame: false,
+            resizable: true
+        });
+        
+        remoteMain.enable(this.conflictWindow.webContents);
+        this.conflictWindow.loadFile(path.join(__dirname, 'src', 'conflict-dialog.html'));
+        
+        this.conflictWindow.once('ready-to-show', () => {
+            this.conflictWindow.webContents.send('conflict-data', {
+                conflicts: conflicts,
+                modDetails: modDetails
+            });
+        });
+        
+        return new Promise((resolve) => {
+            this.pendingResolveCallback = resolve;
+            
+            // Si la ventana se cierra sin resolver
+            this.conflictWindow.on('closed', () => {
+                if (this.pendingResolveCallback) {
+                    this.pendingResolveCallback({ cancelled: true });
+                    this.pendingResolveCallback = null;
+                }
+            });
+        });
+    }
+
+    /**
+     * Completa la resolución de conflictos con los datos proporcionados
+     * @param {Object} data - Datos de la resolución
+     */
+    completeConflictResolution(data) {
+        if (this.pendingResolveCallback) {
+            this.pendingResolveCallback(data);
+            this.pendingResolveCallback = null;
+            
+            if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+                this.conflictWindow.close();
+            }
+        }
+    }
+
+    /**
+     * Cancela la resolución de conflictos
+     */
+    cancelConflictResolution() {
+        if (this.pendingResolveCallback) {
+            this.pendingResolveCallback({ cancelled: true });
+            this.pendingResolveCallback = null;
+            
+            if (this.conflictWindow && !this.conflictWindow.isDestroyed()) {
+                this.conflictWindow.close();
+            }
+        }
+    }
+}
+
+module.exports = WindowManager;

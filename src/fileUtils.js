@@ -3,6 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const yauzl = require('yauzl');
 const { XMLParser } = require('fast-xml-parser');
+const { extractItemValues, detectModConflicts } = require('./conflict-manager');
 
 /**
  * Busca de forma recursiva todos los archivos .pak en el directorio especificado
@@ -249,141 +250,6 @@ async function extractRelevantXmls(pakFiles, modOrderData, onProcessingFile) {
         conflicts: conflicts,
         needsManualOrder: !modOrderExists && conflicts.length > 0
     };
-}
-
-/**
- * Extrae valores de los items de un archivo XML para detectar conflictos
- * @param {string} xmlContent - Contenido del archivo XML
- * @param {string} modId - ID del mod
- * @param {Map} modDetails - Mapa con detalles de los mods
- * @param {Map} conflictItemValues - Mapa para detectar conflictos
- */
-function extractItemValues(xmlContent, modId, modDetails, conflictItemValues) {
-    const parser = new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@_"
-    });
-    
-    try {
-        const parsed = parser.parse(xmlContent);
-        const database = parsed.database;
-        const inventoryPresets = database?.InventoryPresets;
-        const presets = inventoryPresets?.InventoryPreset;
-        
-        if (!presets) return;
-        
-        const presetArray = Array.isArray(presets) ? presets : [presets];
-        
-        for (const preset of presetArray) {
-            const presetName = preset["@_Name"];
-            if (!presetName) continue;
-            
-            const presetItems = preset.PresetItem;
-            if (!presetItems) continue;
-            
-            const itemArray = Array.isArray(presetItems) ? presetItems : [presetItems];
-            
-            for (const item of itemArray) {
-                const itemName = item["@_Name"];
-                if (!itemName) continue;
-                
-                // Extraer valores importantes como cantidad o valor
-                // Revisa ambos atributos: Count y Amount
-                const count = item["@_Count"];
-                const amount = item["@_Amount"]; // Añadido para detectar el atributo Amount
-                const value = item["@_Value"];
-                
-                // Almacenar los valores en los detalles del mod
-                if (modDetails.has(modId)) {
-                    if (!modDetails.get(modId).presetItems.has(itemName)) {
-                        modDetails.get(modId).presetItems.set(itemName, {
-                            count, 
-                            amount,
-                            value,
-                            parentPreset: presetName // Añadir el nombre del preset padre
-                        });
-                    }
-                }
-                
-                // Registrar el item para detectar conflictos
-                // Verifica si hay algún valor definido entre count, amount o value
-                if (count !== undefined || amount !== undefined || value !== undefined) {
-                    if (!conflictItemValues.has(itemName)) {
-                        conflictItemValues.set(itemName, []);
-                    }
-                    
-                    conflictItemValues.get(itemName).push({
-                        modId,
-                        count,
-                        amount,
-                        value,
-                        parentPreset: presetName // Añadir el nombre del preset padre
-                    });
-                }
-            }
-        }
-    } catch (error) {
-        console.error("Error parsing XML content:", error);
-    }
-}
-
-/**
- * Detecta conflictos entre mods basados en los valores de los items
- * @param {Map} conflictItemValues - Mapa con los valores de los items por mod
- * @returns {Array} - Lista de grupos de mods en conflicto
- */
-function detectModConflicts(conflictItemValues) {
-    const conflicts = [];
-    const modsInConflict = new Set();
-    
-    // Analizar cada item para detectar conflictos
-    for (const [itemName, modValues] of conflictItemValues.entries()) {
-        if (modValues.length > 1) {
-            // Verificar si hay valores diferentes
-            const uniqueValues = new Set();
-            let hasConflict = false;
-            
-            // Primero, consolidar modValues por modId para evitar duplicados del mismo mod
-            const consolidatedModValues = new Map();
-            for (const modValue of modValues) {
-                const modId = modValue.modId;
-                consolidatedModValues.set(modId, modValue);
-            }
-            
-            // Ahora usar los valores consolidados para detectar conflictos
-            for (const modValue of consolidatedModValues.values()) {
-                const valueKey = `${modValue.count || ''}_${modValue.amount || ''}_${modValue.value || ''}`;
-                uniqueValues.add(valueKey);
-                
-                if (uniqueValues.size > 1) {
-                    hasConflict = true;
-                    break;
-                }
-            }
-            
-            if (hasConflict) {
-                const conflictGroup = {
-                    itemName,
-                    mods: Array.from(consolidatedModValues.values()).map(mv => ({
-                        modId: mv.modId,
-                        count: mv.count,
-                        amount: mv.amount,
-                        value: mv.value,
-                        parentPreset: mv.parentPreset // Incluir el nombre del preset padre
-                    }))
-                };
-                
-                conflicts.push(conflictGroup);
-                
-                // Registrar los mods que tienen conflictos
-                for (const modValue of consolidatedModValues.values()) {
-                    modsInConflict.add(modValue.modId);
-                }
-            }
-        }
-    }
-    
-    return conflicts;
 }
 
 module.exports = {
