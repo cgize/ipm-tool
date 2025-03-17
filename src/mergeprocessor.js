@@ -179,8 +179,8 @@ async function combineXmls(xmlFiles, options = {}) {
             "@_xsi:noNamespaceSchemaLocation": "InventoryPreset.xsd",
             InventoryPresets: {
                 "@_version": "2",
-                "@_Mode": "All",  // Añadir Mode="All" como especificaste
-                "@_Health": "1",  // Añadir Health="1" como especificaste
+                "@_Mode": "All",
+                "@_Health": "1",
                 // Asegurarse de que cada preset tenga sus PresetItem configurados correctamente
                 InventoryPreset: finalPresets.map(preset => {
                     if (preset.PresetItem && Array.isArray(preset.PresetItem)) {
