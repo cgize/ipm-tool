@@ -234,19 +234,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const logPath = path.join(modsPath, config.PATHS.OUTPUT_FOLDER, config.PATHS.LOG_FILE);
+            
+            // Usar la función del módulo mergeprocessor para asegurar que el directorio existe
+            const { ensureDirectoryExists } = require('./mergeprocessor');
             await ensureDirectoryExists(path.dirname(logPath));
+            
             await fs.writeFile(logPath, logContent);
         } catch (error) {
             console.error('Error saving log file:', error);
-        }
-    }
-
-    // Función auxiliar para asegurar que un directorio existe
-    async function ensureDirectoryExists(dirPath) {
-        try {
-            await fs.access(dirPath);
-        } catch (error) {
-            await fs.mkdir(dirPath, { recursive: true });
         }
     }
 
