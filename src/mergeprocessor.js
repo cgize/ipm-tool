@@ -111,6 +111,7 @@ async function createModManifest(modsPath, logger) {
 
 /**
  * Actualiza el archivo mod_order.txt para incluir el mod de la herramienta
+ * Solo si el archivo ya existe, no lo crea si no existe
  * @param {string} modsPath - Ruta base de los mods
  * @param {Logger} logger - Instancia del logger
  * @returns {Promise<void>}
@@ -126,26 +127,23 @@ async function updateModOrder(modsPath, logger) {
             // Intentar leer el archivo existente
             modOrderContent = await fs.readFile(modOrderPath, 'utf8');
         } catch (readError) {
-            // Si el archivo no existe, crear uno nuevo
+            // Si el archivo no existe, registrar y salir
             if (readError.code === 'ENOENT') {
-                modOrderExists = false;
-                modOrderContent = '';
-                logger.info(`No mod_order.txt found. Will create a new one.`);
+                logger.info(`No mod_order.txt found. Skipping update.`);
+                return; // Salir sin crear el archivo
             } else {
                 // Otro tipo de error
                 throw readError;
             }
         }
 
-        // Si el archivo existe, hacer una copia de seguridad
-        if (modOrderExists) {
-            try {
-                await fs.writeFile(`${modOrderPath}.bak`, modOrderContent);
-                logger.info(`Created backup of mod_order.txt`);
-            } catch (backupError) {
-                logger.warn(`Failed to create backup of mod_order.txt: ${backupError.message}`);
-                // Continuar a pesar del error en la copia de seguridad
-            }
+        // Si llegamos aquí, el archivo existe, hacer una copia de seguridad
+        try {
+            await fs.writeFile(`${modOrderPath}.bak`, modOrderContent);
+            logger.info(`Created backup of mod_order.txt`);
+        } catch (backupError) {
+            logger.warn(`Failed to create backup of mod_order.txt: ${backupError.message}`);
+            // Continuar a pesar del error en la copia de seguridad
         }
 
         // Dividir en líneas y eliminar líneas vacías
