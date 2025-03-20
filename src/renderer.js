@@ -71,20 +71,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function selectDirectory(inputElement) {
         const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-
+    
         if (!result.canceled && result.filePaths.length > 0) {
             const selectedPath = result.filePaths[0];
-            inputElement.value = selectedPath;
             
-            // Guardar la configuración actualizada
-            saveSettings({
-                modsPath: inputElement === modsPathInput ? selectedPath : undefined,
-                steamModsPath: inputElement === steamModsPathInput ? selectedPath : undefined
-            });
-            
-            // Solo limpiar ipmtool cuando se selecciona la ruta principal de mods
+            // Si es la ruta principal del juego, verificar/crear la carpeta Mods
             if (inputElement === modsPathInput) {
-                await cleanIpmToolDirectory(selectedPath);
+                // Construir la ruta a la carpeta Mods dentro del directorio del juego
+                const modsPath = path.join(selectedPath, 'Mods');
+                
+                // Verificar si la carpeta Mods existe, si no, crearla
+                try {
+                    await fs.access(modsPath);
+                    // La carpeta existe, usar esta ruta
+                } catch (error) {
+                    if (error.code === 'ENOENT') {
+                        // La carpeta no existe, crearla
+                        try {
+                            await fs.mkdir(modsPath, { recursive: true });
+                            console.log(`Created Mods directory at: ${modsPath}`);
+                        } catch (mkdirError) {
+                            console.error(`Error creating Mods directory: ${mkdirError.message}`);
+                            alert(`Error creating Mods directory: ${mkdirError.message}`);
+                            return; // Salir si no se puede crear la carpeta
+                        }
+                    } else {
+                        console.error(`Error accessing Mods directory: ${error.message}`);
+                        alert(`Error accessing Mods directory: ${error.message}`);
+                        return; // Salir si hay algún otro error
+                    }
+                }
+                
+                // Actualizar el input con la ruta a la carpeta Mods
+                inputElement.value = modsPath;
+                
+                // Guardar la configuración actualizada
+                saveSettings({
+                    modsPath: modsPath
+                });
+                
+                // Limpiar ipmtool cuando se selecciona la ruta principal de mods
+                await cleanIpmToolDirectory(modsPath);
+            } else {
+                // Para cualquier otro input (como steamModsPath), mantener el comportamiento original
+                inputElement.value = selectedPath;
+                
+                // Guardar la configuración actualizada
+                saveSettings({
+                    steamModsPath: selectedPath
+                });
             }
         }
     }
